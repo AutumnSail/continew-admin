@@ -108,8 +108,52 @@ function assertShape<T>(path: string, body: T, isValid: (value: unknown) => bool
   return body
 }
 
-const isChartBody = (body: unknown) =>
-  typeof body === 'object' && body !== null && Array.isArray((body as { buckets?: unknown }).buckets)
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/** A bucket is usable when it carries a period start; the metric may legitimately be null. */
+const isBucket = (value: unknown) => isObject(value) && typeof value.periodStart === 'string'
+
+/**
+ * Chart body: the shared metadata the page reads plus a bucket array whose entries all have a
+ * period start. Checking only "buckets is an array" would let `[null]` through and crash the
+ * projection later, where an error state can no longer be shown.
+ */
+export function isChartBody(body: unknown) {
+  if (!isObject(body)) {
+    return false
+  }
+
+  const { buckets, partialBuckets } = body
+  return (
+    Array.isArray(buckets) &&
+    buckets.every(isBucket) &&
+    Array.isArray(partialBuckets) &&
+    partialBuckets.every(period => typeof period === 'string')
+  )
+}
+
+/** Release body: `items` is a release array or the documented null; `updatedAt` is a string or null. */
+export function isReleasesBody(body: unknown) {
+  if (!isObject(body) || !('items' in body)) {
+    return false
+  }
+
+  const { items, updatedAt } = body
+  const itemsOk =
+    items === null ||
+    (Array.isArray(items) &&
+      items.every(
+        item =>
+          isObject(item) &&
+          typeof item.tagName === 'string' &&
+          typeof item.title === 'string' &&
+          typeof item.publishedAt === 'string' &&
+          typeof item.htmlUrl === 'string'
+      ))
+
+  return itemsOk && (updatedAt === null || typeof updatedAt === 'string')
+}
 
 const request = async <T>(
   path: string,
@@ -142,13 +186,7 @@ export function getWorkbenchStars(range: WorkbenchRange, signal?: AbortSignal) {
 
 /** Releases do not follow the chart period, so this request carries no range. */
 export function getWorkbenchReleases(signal?: AbortSignal) {
-  return request<WorkbenchReleasesResp>(
-    RELEASES_PATH,
-    undefined,
-    // `items: null` is a documented answer (no snapshot yet), so only a missing key is a bad shape.
-    body => typeof body === 'object' && body !== null && 'items' in body,
-    signal
-  )
+  return request<WorkbenchReleasesResp>(RELEASES_PATH, undefined, isReleasesBody, signal)
 }
 
 export { workbenchKeys } from '@/lib/query-keys'

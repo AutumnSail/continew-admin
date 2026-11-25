@@ -10,6 +10,7 @@ import type {
   WorkbenchStarBucket,
   WorkbenchStarsResp
 } from '@/lib/api/workbench'
+import { isChartBody, isReleasesBody } from '@/lib/api/workbench'
 import { workbenchKeys } from '@/lib/query-keys'
 import {
   aggregateAuthors,
@@ -244,6 +245,9 @@ describe('safeHttpUrl', () => {
     expect(safeHttpUrl(null, 'https://fallback')).toBe('https://fallback')
     expect(safeHttpUrl('not a url', 'https://fallback')).toBe('https://fallback')
     expect(safeOptionalHttpUrl('javascript:alert(1)')).toBeNull()
+    // The value comes from remote JSON; a number must degrade, not throw.
+    expect(safeHttpUrl(42, 'https://fallback')).toBe('https://fallback')
+    expect(safeHttpUrl({ href: 'https://x' }, 'https://fallback')).toBe('https://fallback')
   })
 })
 
@@ -291,5 +295,33 @@ describe('author identity binding', () => {
     expect(first.rows[0].authorId).toBe('alan')
     // The leader changes rank, but the row still points at the same identity.
     expect(second.rows[0].authorId).toBe('linzhou')
+  })
+})
+
+describe('Hub response shape guards', () => {
+  it('rejects a chart body whose buckets or partialBuckets are not usable arrays', () => {
+    const okBody = { buckets: [{ periodStart: '2026-11-01' }], partialBuckets: [] }
+    expect(isChartBody(okBody)).toBe(true)
+    // A null entry would crash the projection on `periodStart`.
+    expect(isChartBody({ buckets: [null], partialBuckets: [] })).toBe(false)
+    expect(isChartBody({ buckets: [{ periodStart: '2026-11-01' }] })).toBe(false)
+    expect(isChartBody({ buckets: [{ periodStart: '2026-11-01' }], partialBuckets: [1] })).toBe(false)
+    expect(isChartBody({ error: 'upstream' })).toBe(false)
+  })
+
+  it('rejects a releases body whose items is neither null nor a release array', () => {
+    const release = {
+      tagName: 'v4.2.0',
+      title: 'v4.2.0',
+      publishedAt: '2026-10-11T00:00:00+08:00',
+      htmlUrl: 'https://github.com/continew-org/continew-admin/releases/tag/v4.2.0'
+    }
+    expect(isReleasesBody({ updatedAt: null, items: [release] })).toBe(true)
+    expect(isReleasesBody({ updatedAt: '2026-11-24T08:00:00+08:00', items: null })).toBe(true)
+    expect(isReleasesBody({ updatedAt: null, items: [] })).toBe(true)
+    // `items: "error"` would reach `items.map()` and throw during render.
+    expect(isReleasesBody({ updatedAt: null, items: 'error' })).toBe(false)
+    expect(isReleasesBody({ updatedAt: null })).toBe(false)
+    expect(isReleasesBody({ updatedAt: 5, items: [] })).toBe(false)
   })
 })

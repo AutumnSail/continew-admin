@@ -20,9 +20,9 @@ interface PromoItem {
 }
 
 interface SponsorEntry {
-  name?: string
-  img?: string
-  url?: string
+  name?: unknown
+  img?: unknown
+  url?: unknown
 }
 
 /** Only the two sponsor tiers the workbench shows. */

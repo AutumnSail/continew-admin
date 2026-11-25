@@ -249,8 +249,9 @@ export function releaseTitle(tagName: string, title: string) {
  * Keeps an http(s) target from a remote payload, so a bad or hostile value cannot turn a link
  * into `javascript:` or an empty href. `fallback` is returned when the value is unusable.
  */
-export function safeHttpUrl(url: string | null | undefined, fallback: string) {
-  const value = url?.trim()
+export function safeHttpUrl(url: unknown, fallback: string) {
+  // The payload is remote JSON: a number or object here must degrade to the fallback, not throw.
+  const value = typeof url === 'string' ? url.trim() : ''
 
   if (!value) {
     return fallback
@@ -265,7 +266,7 @@ export function safeHttpUrl(url: string | null | undefined, fallback: string) {
 }
 
 /** Absolute http(s) only; null when the payload value cannot be used as a link. */
-export function safeOptionalHttpUrl(url: string | null | undefined) {
+export function safeOptionalHttpUrl(url: unknown) {
   const value = safeHttpUrl(url, '')
   return value || null
 }

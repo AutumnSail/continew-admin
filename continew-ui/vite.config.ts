@@ -72,7 +72,15 @@ export default defineConfig(({ mode }) => {
             [hubPrefix]: {
               target: VITE_WORKBENCH_HUB_TARGET,
               changeOrigin: true,
-              headers: { Referer: `${VITE_WORKBENCH_HUB_TARGET}/` }
+              headers: { Referer: `${VITE_WORKBENCH_HUB_TARGET}/` },
+              // `getRaw` already sends no credentials; this also covers a hand-typed URL in the
+              // address bar, which the browser would otherwise decorate with this site's cookies.
+              configure: proxy => {
+                proxy.on('proxyReq', proxyRequest => {
+                  proxyRequest.removeHeader('cookie')
+                  proxyRequest.removeHeader('authorization')
+                })
+              }
             }
           })
       }
