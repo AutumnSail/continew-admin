@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { RouteResp } from '@/lib/api/types'
 import { hasPermission } from '@/lib/permission'
-import { isPathAllowed, toMenuGroups } from '@/navigation/menu'
+import { isPathAllowed } from '@/navigation/menu'
 
 const menu: RouteResp[] = [
   {
@@ -66,74 +66,6 @@ describe('hasPermission', () => {
   })
 })
 
-describe('toMenuGroups', () => {
-  it('draws the static dashboard group and drops a backend node on the same path', () => {
-    const groups = toMenuGroups([
-      { id: 9, parentId: 0, title: '仪表盘', type: 1, path: '/dashboard', name: 'Dashboard', component: 'Layout' }
-    ])
-
-    const items = groups.flatMap(group => (group.label ? group.items : group.items))
-    const dashboard = items.find(item => item.id === 'app-dashboard')
-
-    expect(dashboard?.subItems?.map(sub => sub.url)).toEqual(['/dashboard/workplace', '/dashboard/analysis'])
-    // One entry only: the backend record for the same path is skipped.
-    expect(items.filter(item => item.url === '/dashboard' || item.id.startsWith('app-dashboard'))).toHaveLength(1)
-  })
-
-  it('prunes hidden and button descendants of a dropped dashboard directory', () => {
-    const groups = toMenuGroups([
-      {
-        id: 1,
-        parentId: 0,
-        title: '仪表盘',
-        type: 1,
-        path: '/dashboard',
-        name: 'Dashboard',
-        component: 'Layout',
-        children: [
-          {
-            id: 11,
-            parentId: 1,
-            title: '隐藏页',
-            type: 2,
-            path: '/dashboard/hidden',
-            name: 'H',
-            component: 'x',
-            isHidden: true
-          },
-          { id: 12, parentId: 1, title: '按钮', type: 3, path: '', name: 'B', component: 'x', permission: 'x:y' }
-        ]
-      }
-    ])
-
-    const items = groups.flatMap(group => group.items)
-    // A hidden page or a button must never be lifted to the top level by the dedupe.
-    expect(items.map(item => item.id)).toEqual(['app-dashboard'])
-    expect(items[0].subItems?.map(sub => sub.url)).toEqual(['/dashboard/workplace', '/dashboard/analysis'])
-  })
-
-  it('drops a backend node that points at a dashboard child page', () => {
-    const groups = toMenuGroups([
-      {
-        id: 1,
-        parentId: 0,
-        title: '系统管理',
-        type: 1,
-        path: '/system',
-        name: 'System',
-        component: 'Layout',
-        children: [
-          { id: 2, parentId: 1, title: '工作台', type: 2, path: '/dashboard/workplace', name: 'W', component: 'x' },
-          { id: 3, parentId: 1, title: '用户管理', type: 2, path: '/system/user', name: 'U', component: 'x' }
-        ]
-      }
-    ])
-
-    const system = groups.find(group => group.label === '系统管理')
-    expect(system?.items.map(item => item.url)).toEqual(['/system/user'])
-  })
-})
-
 describe('isPathAllowed', () => {
   it('allows the app-owned static pages even with an empty menu', () => {
     expect(isPathAllowed([], '/dashboard')).toBe(true)
@@ -152,50 +84,5 @@ describe('isPathAllowed', () => {
   it('rejects a page missing from the menu', () => {
     expect(isPathAllowed(menu, '/system/role')).toBe(false)
     expect(isPathAllowed(menu, '/dashboard/unknown')).toBe(false)
-  })
-})
-
-describe('toMenuGroups with seeded menu shapes', () => {
-  it('keeps a menu page whose children are only buttons and hidden pages', () => {
-    // The seed data models 通知公告 exactly like this: a type-2 page with button and hidden children.
-    const groups = toMenuGroups([
-      {
-        id: 1000,
-        parentId: 0,
-        title: '系统管理',
-        type: 1,
-        path: '/system',
-        name: 'System',
-        component: 'Layout',
-        children: [
-          {
-            id: 1090,
-            parentId: 1000,
-            title: '通知公告',
-            type: 2,
-            path: '/system/notice',
-            name: 'SystemNotice',
-            component: 'system/notice/index',
-            children: [
-              { id: 1091, parentId: 1090, title: '列表', type: 3, path: '', name: null, component: null },
-              {
-                id: 1093,
-                parentId: 1090,
-                title: '查看公告',
-                type: 2,
-                path: '/system/notice/view',
-                name: 'V',
-                component: 'x',
-                isHidden: true
-              }
-            ]
-          }
-        ]
-      }
-    ])
-
-    const system = groups.find(group => group.label === '系统管理')
-    expect(system?.items.map(item => item.url)).toEqual(['/system/notice'])
-    expect(system?.items[0].subItems).toBeUndefined()
   })
 })

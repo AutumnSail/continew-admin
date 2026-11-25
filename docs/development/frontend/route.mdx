@@ -56,7 +56,7 @@ export const Route = createFileRoute('/(main)/(app)/system/user')({
 2. **菜单加载**：`ensureMenuLoaded` 等菜单就绪。菜单决定「这个用户有哪些页面」，必须先于页面渲染落定；菜单请求期间会话过期的话，第二步的 `requireAuth` 会再次兜底。
 3. **访问控制**：`requireRouteAccess`（`src/lib/route-access.ts`）核对当前路径是否在菜单里。菜单由后端按权限过滤过，不在菜单里等于没权限，跳 `/unauthorized`。两种情况放行：`$` 兜底路由自己处理未知路径；菜单为空也放行（菜单接口偶发失败时不能把所有用户锁在门外，让页面自己的请求去回答 403）。
 
-侧边栏的分组由 `src/navigation/menu.ts` 的 `toMenuGroups` 转换：顶级目录变标签组，菜单变链接项，更深的目录拍平成一层子项；类型 3（按钮）与 `isHidden` 节点不出现在侧边栏。应用自有的静态入口（`/dashboard` 及其 `workplace`、`analysis` 两个子页，`STATIC_MENU_ITEMS`）不依赖 `sys_menu` 记录，始终排在最前；后端若残留同路径的菜单记录会被跳过，不会出现第二个「仪表盘」。菜单节点还带 `isExternal`（外链新开标签页）与 `redirect`（占位页直接跳转）字段。
+侧边栏的分组由 `src/navigation/menu.ts` 的 `toMenuGroups` 转换：顶级目录变标签组，菜单变链接项，更深的目录拍平成一层子项；类型 3（按钮）与 `isHidden` 节点不出现在侧边栏。应用自有的静态入口（`/dashboard` 及其 `workplace`、`analysis` 两个子页，`STATIC_MENU_ITEMS`）不依赖 `sys_menu` 记录，始终排在最前；仪表盘相关菜单因此不需要在后端菜单里配置。菜单节点还带 `isExternal`（外链新开标签页）与 `redirect`（占位页直接跳转）字段。
 
 <Callout type="info">
 菜单里隐藏（`isHidden`）的节点不出现在侧边栏，但只要在菜单树里就仍然可以访问。访问控制看的是「菜单树里有没有」，与显不显示无关。

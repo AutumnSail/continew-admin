@@ -1,10 +1,10 @@
 /** Where signing in lands, and the tab the shell keeps pinned. */
 export const HOME_PATH = '/dashboard/workplace'
 
-/** The second dashboard page; kept beside the home path so the menu and the lookups cannot drift. */
+/** The analysis page, beside the home path so the menu and the lookups cannot drift apart. */
 export const ANALYSIS_PATH = '/dashboard/analysis'
 
-/** The legacy dashboard path, kept as a redirect target for old links and menus. */
+/** The dashboard root; it redirects to the workbench and stays as the menu group's own entry. */
 export const DASHBOARD_PATH = '/dashboard'
 
 /**

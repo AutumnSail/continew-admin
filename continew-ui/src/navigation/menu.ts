@@ -46,12 +46,6 @@ export function toPathname(path: string) {
   return queryIndex === -1 ? path : path.slice(0, queryIndex)
 }
 
-/** Normalizes a pathname for comparisons: no query string, no trailing slash. */
-function normalizePathname(pathname: string) {
-  const path = toPathname(pathname).replace(/\/+$/, '')
-  return path || '/'
-}
-
 /** Buttons carry a permission code instead of a page, and hidden nodes are details. */
 function isVisible(node: RouteResp) {
   return node.type !== TYPE_BUTTON && !node.isHidden
@@ -67,11 +61,23 @@ function toMenuItem(node: RouteResp): MenuItem {
   }
 }
 
+/** Nested directories are flattened: the sidebar renders a single sub-item level. */
+function toMenuSubItems(nodes: readonly RouteResp[]): MenuItem[] {
+  return nodes.filter(isVisible).flatMap(node => {
+    if (node.type !== TYPE_MENU && node.children?.length) {
+      return toMenuSubItems(node.children)
+    }
+
+    return [toMenuItem(node)]
+  })
+}
+
 /**
  * Menu entries the app owns instead of the backend.
  *
- * The dashboard group is static: the workbench and the analysis page exist for every signed-in
- * user, so they must not depend on `sys_menu` records or on the current user's permissions.
+ * The dashboard group is static: its pages exist for every signed-in user, so they must not
+ * depend on `sys_menu` records or on the current user's permissions. `/dashboard` itself only
+ * redirects to the workbench.
  */
 export const STATIC_MENU_ITEMS: readonly MenuItem[] = [
   {
@@ -86,55 +92,6 @@ export const STATIC_MENU_ITEMS: readonly MenuItem[] = [
   }
 ]
 
-/** Normalized paths the app renders itself; a backend node on one of them would duplicate the entry. */
-const STATIC_PATHS = new Set(
-  STATIC_MENU_ITEMS.flatMap(item => [item.url, ...(item.subItems ?? []).map(sub => sub.url)]).map(normalizePathname)
-)
-
-/**
- * Drops a backend node whose path the app already renders, but keeps its children: a backend
- * `/dashboard` directory may also hold pages of its own, and those still belong in the sidebar.
- *
- * Invisible nodes are pruned at every level here, so a hidden or button child of a dropped
- * directory never surfaces as a top-level link. Only a directory that loses all of its children
- * is dropped as well: it would render as a link to a path with no page, while a menu (type 2)
- * naturally has nothing but buttons and hidden pages under it and must stay.
- */
-function withoutStaticNodes(nodes: readonly RouteResp[]): RouteResp[] {
-  return nodes.filter(isVisible).flatMap(node => {
-    const children = node.children
-
-    if (STATIC_PATHS.has(normalizePathname(node.path))) {
-      return children ? withoutStaticNodes(children) : []
-    }
-
-    if (!children) {
-      return [node]
-    }
-
-    const keptChildren = withoutStaticNodes(children)
-    const isDirectory = node.type !== TYPE_MENU
-    return isDirectory && keptChildren.length === 0 ? [] : [{ ...node, children: keptChildren }]
-  })
-}
-
-/** Nested directories are flattened: the sidebar renders a single sub-item level. */
-function toMenuSubItems(nodes: readonly RouteResp[]): MenuItem[] {
-  return nodes.flatMap(node => {
-    if (node.type !== TYPE_MENU && node.children?.length) {
-      return toMenuSubItems(node.children)
-    }
-
-    return [toMenuItem(node)]
-  })
-}
-
-/** A directory keeps its children, or degrades to a plain link once none are left. */
-function toParentItem(node: RouteResp): MenuItem {
-  const subItems = toMenuSubItems(node.children ?? [])
-  return subItems.length > 0 ? { ...toMenuItem(node), subItems } : toMenuItem(node)
-}
-
 /**
  * Converts the backend menu tree into sidebar groups.
  *
@@ -147,15 +104,19 @@ export function toMenuGroups(nodes: readonly RouteResp[]): MenuGroup[] {
   const groups: MenuGroup[] = []
   const looseItems: MenuItem[] = [...STATIC_MENU_ITEMS]
 
-  for (const node of withoutStaticNodes(nodes)) {
+  for (const node of nodes.filter(isVisible)) {
     if (node.type === TYPE_MENU || !node.children?.length) {
       looseItems.push(toMenuItem(node))
       continue
     }
 
-    const items = node.children.map(child =>
-      child.type !== TYPE_MENU && child.children?.length ? toParentItem(child) : toMenuItem(child)
-    )
+    const items = node.children
+      .filter(isVisible)
+      .map(child =>
+        child.type !== TYPE_MENU && child.children?.length
+          ? { ...toMenuItem(child), subItems: toMenuSubItems(child.children) }
+          : toMenuItem(child)
+      )
 
     if (items.length > 0) {
       groups.push({ id: String(node.id), label: node.title, icon: resolveMenuIcon(node.icon), items })
@@ -190,6 +151,12 @@ export function findMenuTrail(nodes: readonly RouteResp[], pathname: string): Ro
 /** Finds the menu entry behind a pathname, so placeholders can show its title. */
 export function findMenuByPath(nodes: readonly RouteResp[], pathname: string) {
   return findMenuTrail(nodes, pathname).at(-1)
+}
+
+/** Normalizes a pathname for menu matching: no query string, no trailing slash. */
+function normalizePathname(pathname: string) {
+  const path = toPathname(pathname).replace(/\/+$/, '')
+  return path || '/'
 }
 
 /**
