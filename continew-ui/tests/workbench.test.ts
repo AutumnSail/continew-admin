@@ -310,6 +310,8 @@ describe('Hub response shape guards', () => {
     // An author entry the leaderboard cannot read would crash it mid-render.
     expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01', authors: [null] }] })).toBe(false)
     expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01', authors: [{ authorId: 'a' }] }] })).toBe(false)
+    // A negative count would cancel another author's commits in the leaderboard sum.
+    expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01', authors: [{ ...author, count: -1 }] }] })).toBe(false)
     expect(check({ ...ok, buckets: [null] })).toBe(false)
     expect(check({ ...ok, partialBuckets: [1] })).toBe(false)
     expect(check({ error: 'upstream' })).toBe(false)
@@ -326,6 +328,9 @@ describe('Hub response shape guards', () => {
     // Absent is not the same as the documented null: starDomain would compute NaN.
     expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01' }] })).toBe(false)
     expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01', totalStars: '143' }] })).toBe(false)
+    // A negative or fractional total would reach the chart as a real value.
+    expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01', totalStars: -1 }] })).toBe(false)
+    expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01', totalStars: 1.5 }] })).toBe(false)
   })
 
   it('rejects a releases body whose items is neither null nor a release array', () => {

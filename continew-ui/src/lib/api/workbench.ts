@@ -111,14 +111,16 @@ function assertShape<T>(path: string, body: T, isValid: (value: unknown) => bool
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
+/** A count or a star total is a non-negative integer; anything else would skew the sums. */
+const isCount = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+
 /** An author entry is usable when the leaderboard can read every field it renders. */
 const isAuthor = (value: unknown) =>
   isObject(value) &&
   typeof value.authorId === 'string' &&
   typeof value.displayName === 'string' &&
   (value.avatarUrl === null || typeof value.avatarUrl === 'string') &&
-  typeof value.count === 'number' &&
-  Number.isFinite(value.count)
+  isCount(value.count)
 
 /** Commit bucket: `authors` is either the documented null or an author array. */
 export const isCommitBucket = (value: unknown) =>
@@ -128,9 +130,7 @@ export const isCommitBucket = (value: unknown) =>
 
 /** Star bucket: `totalStars` is either the documented null or a finite number. */
 export const isStarBucket = (value: unknown) =>
-  isObject(value) &&
-  typeof value.periodStart === 'string' &&
-  (value.totalStars === null || (typeof value.totalStars === 'number' && Number.isFinite(value.totalStars)))
+  isObject(value) && typeof value.periodStart === 'string' && (value.totalStars === null || isCount(value.totalStars))
 
 /**
  * Chart body for the metric the caller asked for.
