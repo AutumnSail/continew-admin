@@ -111,26 +111,50 @@ function assertShape<T>(path: string, body: T, isValid: (value: unknown) => bool
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** A bucket is usable when it carries a period start; the metric may legitimately be null. */
-const isBucket = (value: unknown) => isObject(value) && typeof value.periodStart === 'string'
+/** An author entry is usable when the leaderboard can read every field it renders. */
+const isAuthor = (value: unknown) =>
+  isObject(value) &&
+  typeof value.authorId === 'string' &&
+  typeof value.displayName === 'string' &&
+  (value.avatarUrl === null || typeof value.avatarUrl === 'string') &&
+  typeof value.count === 'number' &&
+  Number.isFinite(value.count)
+
+/** Commit bucket: `authors` is either the documented null or an author array. */
+export const isCommitBucket = (value: unknown) =>
+  isObject(value) &&
+  typeof value.periodStart === 'string' &&
+  (value.authors === null || (Array.isArray(value.authors) && value.authors.every(isAuthor)))
+
+/** Star bucket: `totalStars` is either the documented null or a finite number. */
+export const isStarBucket = (value: unknown) =>
+  isObject(value) &&
+  typeof value.periodStart === 'string' &&
+  (value.totalStars === null || (typeof value.totalStars === 'number' && Number.isFinite(value.totalStars)))
 
 /**
- * Chart body: the shared metadata the page reads plus a bucket array whose entries all have a
- * period start. Checking only "buckets is an array" would let `[null]` through and crash the
- * projection later, where an error state can no longer be shown.
+ * Chart body for the metric the caller asked for.
+ *
+ * Each bucket is checked field by field: `[null]`, an `authors: [null]`, or a missing `totalStars`
+ * would otherwise pass the array check and crash the projection later, where an error state can no
+ * longer be shown. `range` is compared with the request because the projection picks its axis
+ * labels from it — a mismatched echo would label month buckets as days.
  */
-export function isChartBody(body: unknown) {
-  if (!isObject(body)) {
-    return false
-  }
+export function chartBodyCheck(range: WorkbenchRange, isBucket: (value: unknown) => boolean) {
+  return (body: unknown) => {
+    if (!isObject(body)) {
+      return false
+    }
 
-  const { buckets, partialBuckets } = body
-  return (
-    Array.isArray(buckets) &&
-    buckets.every(isBucket) &&
-    Array.isArray(partialBuckets) &&
-    partialBuckets.every(period => typeof period === 'string')
-  )
+    const { buckets, partialBuckets } = body
+    return (
+      body.range === range &&
+      Array.isArray(buckets) &&
+      buckets.every(isBucket) &&
+      Array.isArray(partialBuckets) &&
+      partialBuckets.every(period => typeof period === 'string')
+    )
+  }
 }
 
 /** Release body: `items` is a release array or the documented null; `updatedAt` is a string or null. */
@@ -177,11 +201,11 @@ const request = async <T>(
 }
 
 export function getWorkbenchCommits(range: WorkbenchRange, signal?: AbortSignal) {
-  return request<WorkbenchCommitsResp>(COMMITS_PATH, { range }, isChartBody, signal)
+  return request<WorkbenchCommitsResp>(COMMITS_PATH, { range }, chartBodyCheck(range, isCommitBucket), signal)
 }
 
 export function getWorkbenchStars(range: WorkbenchRange, signal?: AbortSignal) {
-  return request<WorkbenchStarsResp>(STARS_PATH, { range }, isChartBody, signal)
+  return request<WorkbenchStarsResp>(STARS_PATH, { range }, chartBodyCheck(range, isStarBucket), signal)
 }
 
 /** Releases do not follow the chart period, so this request carries no range. */

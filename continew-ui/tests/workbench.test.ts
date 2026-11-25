@@ -10,7 +10,7 @@ import type {
   WorkbenchStarBucket,
   WorkbenchStarsResp
 } from '@/lib/api/workbench'
-import { isChartBody, isReleasesBody } from '@/lib/api/workbench'
+import { chartBodyCheck, isCommitBucket, isReleasesBody, isStarBucket } from '@/lib/api/workbench'
 import { workbenchKeys } from '@/lib/query-keys'
 import {
   aggregateAuthors,
@@ -299,14 +299,33 @@ describe('author identity binding', () => {
 })
 
 describe('Hub response shape guards', () => {
-  it('rejects a chart body whose buckets or partialBuckets are not usable arrays', () => {
-    const okBody = { buckets: [{ periodStart: '2026-11-01' }], partialBuckets: [] }
-    expect(isChartBody(okBody)).toBe(true)
-    // A null entry would crash the projection on `periodStart`.
-    expect(isChartBody({ buckets: [null], partialBuckets: [] })).toBe(false)
-    expect(isChartBody({ buckets: [{ periodStart: '2026-11-01' }] })).toBe(false)
-    expect(isChartBody({ buckets: [{ periodStart: '2026-11-01' }], partialBuckets: [1] })).toBe(false)
-    expect(isChartBody({ error: 'upstream' })).toBe(false)
+  it('validates commit buckets field by field and requires the requested range back', () => {
+    const author = { authorId: 'a', displayName: '甲', avatarUrl: null, count: 3 }
+    const ok = { range: '30d', buckets: [{ periodStart: '2026-11-01', authors: [author] }], partialBuckets: [] }
+    const check = chartBodyCheck('30d', isCommitBucket)
+
+    expect(check(ok)).toBe(true)
+    expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01', authors: null }] })).toBe(true)
+    expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01', authors: [] }] })).toBe(true)
+    // An author entry the leaderboard cannot read would crash it mid-render.
+    expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01', authors: [null] }] })).toBe(false)
+    expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01', authors: [{ authorId: 'a' }] }] })).toBe(false)
+    expect(check({ ...ok, buckets: [null] })).toBe(false)
+    expect(check({ ...ok, partialBuckets: [1] })).toBe(false)
+    expect(check({ error: 'upstream' })).toBe(false)
+    // A mismatched echo would make the projection label month buckets as days.
+    expect(check({ ...ok, range: '6m' })).toBe(false)
+  })
+
+  it('validates star buckets and treats a missing totalStars as a bad shape', () => {
+    const check = chartBodyCheck('6m', isStarBucket)
+    const ok = { range: '6m', buckets: [{ periodStart: '2026-11-01', totalStars: 143 }], partialBuckets: [] }
+
+    expect(check(ok)).toBe(true)
+    expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01', totalStars: null }] })).toBe(true)
+    // Absent is not the same as the documented null: starDomain would compute NaN.
+    expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01' }] })).toBe(false)
+    expect(check({ ...ok, buckets: [{ periodStart: '2026-11-01', totalStars: '143' }] })).toBe(false)
   })
 
   it('rejects a releases body whose items is neither null nor a release array', () => {
