@@ -61,31 +61,58 @@ function toMenuItem(node: RouteResp): MenuItem {
   }
 }
 
-/** Nested directories are flattened: the sidebar renders a single sub-item level. */
-function toMenuSubItems(nodes: readonly RouteResp[]): MenuItem[] {
-  return nodes.filter(isVisible).flatMap(node => {
-    if (node.type !== TYPE_MENU && node.children?.length) {
-      return toMenuSubItems(node.children)
-    }
-
-    return [toMenuItem(node)]
-  })
-}
-
 /**
  * Menu entries the app owns instead of the backend.
  *
- * `/dashboard` is a static route: it exists for every signed-in user, so it must not
- * depend on a `sys_menu` record or on the current user's permissions.
+ * The dashboard group is static: `/dashboard/workplace` and `/dashboard/analysis` exist for every
+ * signed-in user, so they must not depend on `sys_menu` records or on the current user's
+ * permissions. `/dashboard` itself redirects to the workbench.
  */
 export const STATIC_MENU_ITEMS: readonly MenuItem[] = [
   {
     id: 'app-dashboard',
     title: '仪表盘',
     url: '/dashboard',
-    icon: resolveMenuIcon('dashboard')
+    icon: resolveMenuIcon('dashboard'),
+    subItems: [
+      {
+        id: 'app-dashboard-workplace',
+        title: '工作台',
+        url: '/dashboard/workplace',
+        icon: resolveMenuIcon('desktop')
+      },
+      {
+        id: 'app-dashboard-analysis',
+        title: '分析页',
+        url: '/dashboard/analysis',
+        icon: resolveMenuIcon('chart')
+      }
+    ]
   }
 ]
+
+/** Paths the app renders itself; a backend node on one of them would duplicate the sidebar entry. */
+const STATIC_PATHS = new Set(
+  STATIC_MENU_ITEMS.flatMap(item => [item.url, ...(item.subItems ?? []).map(sub => sub.url)])
+)
+
+function isStaticPath(path: string) {
+  return STATIC_PATHS.has(toPathname(path))
+}
+
+/** Nested directories are flattened: the sidebar renders a single sub-item level. */
+function toMenuSubItems(nodes: readonly RouteResp[]): MenuItem[] {
+  return nodes
+    .filter(isVisible)
+    .filter(node => !isStaticPath(node.path))
+    .flatMap(node => {
+      if (node.type !== TYPE_MENU && node.children?.length) {
+        return toMenuSubItems(node.children)
+      }
+
+      return [toMenuItem(node)]
+    })
+}
 
 /**
  * Converts the backend menu tree into sidebar groups.
@@ -94,12 +121,17 @@ export const STATIC_MENU_ITEMS: readonly MenuItem[] = [
  * directory nested inside a group becomes a collapsible parent item. Menus that sit
  * at the top level are collected into an unlabelled group in front of the rest, and
  * the app-owned static items are merged into that same group so they stay on top.
+ *
+ * Nodes on a static path are skipped: `/dashboard` and its pages come from the app, so a
+ * leftover `sys_menu` record for them must not add a second entry.
  */
 export function toMenuGroups(nodes: readonly RouteResp[]): MenuGroup[] {
   const groups: MenuGroup[] = []
   const looseItems: MenuItem[] = [...STATIC_MENU_ITEMS]
 
-  for (const node of nodes.filter(isVisible)) {
+  const visible = nodes.filter(isVisible).filter(node => !isStaticPath(node.path))
+
+  for (const node of visible) {
     if (node.type === TYPE_MENU || !node.children?.length) {
       looseItems.push(toMenuItem(node))
       continue
@@ -107,6 +139,7 @@ export function toMenuGroups(nodes: readonly RouteResp[]): MenuGroup[] {
 
     const items = node.children
       .filter(isVisible)
+      .filter(child => !isStaticPath(child.path))
       .map(child =>
         child.type !== TYPE_MENU && child.children?.length
           ? { ...toMenuItem(child), subItems: toMenuSubItems(child.children) }

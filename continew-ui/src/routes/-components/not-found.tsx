@@ -13,7 +13,7 @@ export function NotFound() {
       title="页面不存在"
       description="您访问的页面不存在或已被移动。"
       actions={
-        <Button nativeButton={false} render={<Link to="/dashboard" replace />}>
+        <Button nativeButton={false} render={<Link to="/dashboard/workplace" replace />}>
           返回首页
         </Button>
       }

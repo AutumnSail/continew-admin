@@ -29,4 +29,14 @@ description: 百度统计与万维广告只在官方演示站的构建里启用�
 
 最后在 `continew-ui` 下执行 `pnpm check`，格式、lint、类型、单测与构建都通过即完成。
 
-赞助轮播（`continew-ui/src/layouts/sidebar/support-carousel.tsx`）只是撤下了侧栏挂载，与广告无关，删除广告时不用动它。
+赞助轮播是工作台右侧的 `continew-ui/src/routes/(main)/(app)/dashboard/workplace/-components/workbench-sponsors.tsx`，与广告无关，删除广告时不用动它。
+
+## 移除工作台的 Hub 数据区
+
+工作台的近期提交、Star 趋势与更新日志来自独立的 ContiNew Hub 服务，由 `VITE_WORKBENCH_HUB_URL` 控制；置空（`.env.production` 的默认值）时这三块显示「未配置工作台数据源」，不再发起请求，公告与赞助轮播仍正常显示。要彻底删掉 Hub 接入：
+
+1. 删除 `continew-ui/src/lib/api/workbench.ts`、`continew-ui/src/lib/http.ts` 的 `getRaw` 与 `RawRequestOptions`，以及 `src/lib/query-keys.ts` 的 `workbenchKeys`。
+2. 删除 `dashboard/workplace/-components/` 下的 `workbench-activity.tsx`、`workbench-stars.tsx`、`workbench-releases.tsx`、`workbench-data.ts`、`workbench-queries.ts`，并从 `workplace/route.tsx` 移除它们和周期切换的 state。
+3. 删除 `continew-ui/.env.development` 的 `VITE_WORKBENCH_HUB_URL` / `VITE_WORKBENCH_HUB_TARGET`、`.env.production` 的 `VITE_WORKBENCH_HUB_URL`，以及 `src/vite-env.d.ts` 里对应的两条声明。
+4. 移除 `continew-ui/vite.config.ts` 的 `hubPrefix` 计算与 `/hub` 代理项。
+5. 删除 `continew-ui/tests/workbench.test.ts`。

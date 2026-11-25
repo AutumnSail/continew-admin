@@ -1,6 +1,8 @@
 /** Titles for the app's static dashboard routes, shared by the header tabs and the breadcrumb. */
 export const STATIC_ROUTE_TITLES: Record<string, string> = {
   '/dashboard': '仪表盘',
+  '/dashboard/workplace': '工作台',
+  '/dashboard/analysis': '分析页',
   '/dashboard/profile': '个人中心',
   '/user/message': '消息中心'
 }
@@ -8,6 +10,8 @@ export const STATIC_ROUTE_TITLES: Record<string, string> = {
 /** Menu icon names for the same static routes, used by the header tabs. */
 export const STATIC_ROUTE_ICONS: Record<string, string> = {
   '/dashboard': 'dashboard',
+  '/dashboard/workplace': 'desktop',
+  '/dashboard/analysis': 'chart',
   '/dashboard/profile': 'user',
   '/user/message': 'bell'
 }

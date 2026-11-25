@@ -17,7 +17,7 @@ function publishDate(publishTime: string | null | undefined) {
   return publishTime ? publishTime.slice(0, 10) : undefined
 }
 
-export function DashboardNotices() {
+export function WorkbenchNotices() {
   const query = useQuery({
     queryKey: dashboardKeys.notices(),
     queryFn: ({ signal }) => getDashboardNotices(signal)

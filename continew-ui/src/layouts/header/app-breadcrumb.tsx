@@ -37,7 +37,7 @@ export function useBreadcrumbTrail(): BreadcrumbItemData[] {
     const homeItem: BreadcrumbItemData = {
       id: 'app-home',
       title: '首页',
-      url: '/dashboard'
+      url: '/dashboard/workplace'
     }
 
     // Dashboard root: no breadcrumb needed on the home overview

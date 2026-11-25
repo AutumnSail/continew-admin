@@ -17,7 +17,7 @@ function UnauthorizedPage() {
       title="无访问权限"
       description="您没有权限访问该页面。如认为这是错误，请联系系统管理员。"
       actions={
-        <Button nativeButton={false} render={<Link to="/dashboard" />}>
+        <Button nativeButton={false} render={<Link to="/dashboard/workplace" />}>
           返回首页
         </Button>
       }

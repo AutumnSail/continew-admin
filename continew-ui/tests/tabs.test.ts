@@ -27,7 +27,7 @@ describe('tabs store', () => {
   it('adds a closable tab and records visit history', () => {
     useTabsStore.getState().addTab(tab('/a', 'A'), 0)
     const { tabs, history } = useTabsStore.getState()
-    expect(tabs.map(t => t.path)).toEqual(['/dashboard', '/a'])
+    expect(tabs.map(t => t.path)).toEqual([DEFAULT_PINNED_TAB.path, '/a'])
     expect(tabs[1].closable).toBe(true)
     expect(history).toEqual(['/a'])
   })
@@ -35,7 +35,7 @@ describe('tabs store', () => {
   it('ignores auth and unauthorized pages', () => {
     useTabsStore.getState().addTab(tab('/auth/login'), 0)
     useTabsStore.getState().addTab(tab('/unauthorized'), 0)
-    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual(['/dashboard'])
+    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual([DEFAULT_PINNED_TAB.path])
   })
 
   it('merges title and icon when the same path is added again', () => {
@@ -50,7 +50,7 @@ describe('tabs store', () => {
     useTabsStore.getState().addTab(tab('/a'), 2)
     useTabsStore.getState().addTab(tab('/b'), 2)
     useTabsStore.getState().addTab(tab('/c'), 2)
-    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual(['/dashboard', '/b', '/c'])
+    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual([DEFAULT_PINNED_TAB.path, '/b', '/c'])
   })
 
   it('closeTab returns the next path and can fall back to visit history', () => {
@@ -59,22 +59,22 @@ describe('tabs store', () => {
     // Visit history is [/a, /b]; closing /b should fall back to /a.
     const next = useTabsStore.getState().closeTab('/b', true)
     expect(next).toBe('/a')
-    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual(['/dashboard', '/a'])
+    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual([DEFAULT_PINNED_TAB.path, '/a'])
   })
 
   it('keeps pinned tabs when closing left, right or all', () => {
     useTabsStore.getState().addTab(tab('/a'), 0)
     useTabsStore.getState().addTab(tab('/b'), 0)
     useTabsStore.getState().closeAllTabs()
-    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual(['/dashboard'])
+    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual([DEFAULT_PINNED_TAB.path])
   })
 
   it('togglePin moves a tab into the pinned section', () => {
     useTabsStore.getState().addTab(tab('/a'), 0)
     useTabsStore.getState().togglePin('/a')
     const { tabs } = useTabsStore.getState()
-    // Pinned tabs sit in front; the dashboard stays pinned first, /a joins it.
-    expect(tabs.map(t => t.path)).toEqual(['/dashboard', '/a'])
+    // Pinned tabs sit in front; the landing page stays pinned first, /a joins it.
+    expect(tabs.map(t => t.path)).toEqual([DEFAULT_PINNED_TAB.path, '/a'])
     expect(tabs[1].closable).toBe(false)
   })
 
@@ -83,16 +83,16 @@ describe('tabs store', () => {
     useTabsStore.getState().addTab(tab('/b'), 0)
     // Move /b before /a (both closable) -> [/dashboard, /b, /a]
     useTabsStore.getState().moveTab(2, 1)
-    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual(['/dashboard', '/b', '/a'])
+    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual([DEFAULT_PINNED_TAB.path, '/b', '/a'])
     // Cross-section move (closable -> pinned) is ignored.
     useTabsStore.getState().moveTab(1, 0)
-    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual(['/dashboard', '/b', '/a'])
+    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual([DEFAULT_PINNED_TAB.path, '/b', '/a'])
   })
 
-  it('pruneTabs drops unknown closable tabs but keeps the pinned dashboard', () => {
+  it('pruneTabs drops unknown closable tabs but keeps the pinned landing tab', () => {
     useTabsStore.getState().addTab(tab('/keep'), 0)
     useTabsStore.getState().addTab(tab('/gone'), 0)
     useTabsStore.getState().pruneTabs(path => path === '/keep')
-    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual(['/dashboard', '/keep'])
+    expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual([DEFAULT_PINNED_TAB.path, '/keep'])
   })
 })

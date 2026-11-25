@@ -45,6 +45,7 @@ export function deleteGoods(id: string | number) {
 |:-----|:-----|
 | `get` / `post` / `put` / `patch` / `del` | 常规请求，泛型标注响应类型，成功时已解包到 `data` 字段 |
 | `downloadFile` | 文件下载：解析 `Content-Disposition` 文件名，401 时先刷新再重试一次 |
+| `getRaw` | 匿名外部 GET，响应体即业务数据；不注入会话头、不刷新令牌，见下文「匿名外部服务」 |
 
 成功响应直接返回 `ApiResponse.data`，页面拿到的已经是业务数据；失败时抛 `ApiError`（`src/lib/http.ts:44`），携带 `code`（后端业务码）、`status`（HTTP 状态）与 `notified`（是否已弹过提示）三个字段。
 
@@ -125,6 +126,12 @@ HTTP 403 触发 `forbiddenHandler`（`src/lib/http.ts:293`），回调在 `auth-
 网络层失败提示「网络连接失败，请检查您的网络」。调用方主动取消的请求（React Query 换键或卸载时中止）原样抛出，不当网络故障弹提示。
 
 `downloadFile` 对失败的下载做了两步兜底：响应是 JSON 时按业务错误解析 `msg` 并抛出，避免错误被当文件吞掉；响应正常时从 `Content-Disposition` 解析文件名（兼容 `filename*=UTF-8''` 与带引号两种格式）。
+
+## 匿名外部服务
+
+工作台的 Hub 数据（近期提交、Star 趋势、更新日志）不是 Admin 自己的接口：它对匿名请求返回裸 JSON，不套 `{ success, data }`，也不认 Admin 的令牌。这类请求用 `src/lib/http.ts` 的 `getRaw(path, { baseUrl, query, signal, onResponse })`，不要自己写 `fetch`。
+
+`getRaw` 保留了超时、`AbortSignal` 叠加与静默失败三条约定，去掉了仅对 Admin 有意义的四件事：不注入 `Authorization` / `X-Tenant-Id`，`credentials: 'omit'`，401 不触发刷新，403 不跳无权限页。`onResponse` 回传原始 `Response`，用于读取 `X-Data-Source` 这类非响应体信息（工作台据此显示「示例数据」）。接口定义与类型在 `src/lib/api/workbench.ts`，服务地址只从 `VITE_WORKBENCH_HUB_URL` 读取。
 
 ## TanStack Query 缓存约定
 

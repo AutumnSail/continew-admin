@@ -114,8 +114,8 @@ function assertGeneration(generation: number) {
   }
 }
 
-function buildUrl(path: string, query?: Query) {
-  const url = `${BASE_URL}${path}`
+function buildUrl(path: string, query?: Query, base = BASE_URL) {
+  const url = `${base}${path}`
 
   if (!query) {
     return url
@@ -254,6 +254,50 @@ async function throwSessionExpired(response: Response, generation: number): Prom
   const error = new ApiError(message, { status: 401 })
   error.notified = true
   throw error
+}
+
+/** Options of an external GET; `baseUrl` is the service origin, the path is appended to it. */
+export interface RawRequestOptions {
+  readonly baseUrl: string
+  readonly query?: Query
+  readonly signal?: AbortSignal
+  /** Exposes the X-Data-Source style hints the service sends alongside the body. */
+  readonly onResponse?: (response: Response) => void
+}
+
+/**
+ * Anonymous external GET: the response body is the payload itself.
+ *
+ * The Admin session never applies to another origin, so no Authorization / X-Tenant-Id header is
+ * sent, cookies are omitted, and a 401/403 is a plain failure here — refreshing would only touch
+ * a session this service does not know about. Timeout, AbortSignal merging and error reporting
+ * behave like the envelope path; errors stay silent because the caller renders its own error state.
+ */
+export async function getRaw<T>(path: string, options: RawRequestOptions): Promise<T> {
+  const { baseUrl, query, signal: callerSignal, onResponse } = options
+  const timeout = timeoutSignal()
+  const signal = callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout
+  const base = baseUrl.replace(/\/+$/, '')
+
+  let response: Response
+  try {
+    response = await fetch(buildUrl(path, query, base), { method: 'GET', credentials: 'omit', signal })
+  } catch (error) {
+    if (callerSignal?.aborted) {
+      throw error
+    }
+
+    throw fail(NETWORK_ERROR_MESSAGE, {}, true)
+  }
+
+  onResponse?.(response)
+  const data = await response.json().catch(() => null)
+
+  if (!response.ok || data === null) {
+    throw fail(STATUS_MESSAGE[response.status] ?? `请求失败（${response.status}）`, { status: response.status }, true)
+  }
+
+  return data as T
 }
 
 async function send<T>(

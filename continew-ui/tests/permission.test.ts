@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { RouteResp } from '@/lib/api/types'
 import { hasPermission } from '@/lib/permission'
-import { isPathAllowed } from '@/navigation/menu'
+import { isPathAllowed, toMenuGroups } from '@/navigation/menu'
 
 const menu: RouteResp[] = [
   {
@@ -63,6 +63,42 @@ describe('hasPermission', () => {
 
   it('denies everything when no code was granted', () => {
     expect(hasPermission([], 'system:user:list')).toBe(false)
+  })
+})
+
+describe('toMenuGroups', () => {
+  it('draws the static dashboard group and drops a backend node on the same path', () => {
+    const groups = toMenuGroups([
+      { id: 9, parentId: 0, title: '仪表盘', type: 1, path: '/dashboard', name: 'Dashboard', component: 'Layout' }
+    ])
+
+    const items = groups.flatMap(group => (group.label ? group.items : group.items))
+    const dashboard = items.find(item => item.id === 'app-dashboard')
+
+    expect(dashboard?.subItems?.map(sub => sub.url)).toEqual(['/dashboard/workplace', '/dashboard/analysis'])
+    // One entry only: the backend record for the same path is skipped.
+    expect(items.filter(item => item.url === '/dashboard' || item.id.startsWith('app-dashboard'))).toHaveLength(1)
+  })
+
+  it('drops a backend node that points at a dashboard child page', () => {
+    const groups = toMenuGroups([
+      {
+        id: 1,
+        parentId: 0,
+        title: '系统管理',
+        type: 1,
+        path: '/system',
+        name: 'System',
+        component: 'Layout',
+        children: [
+          { id: 2, parentId: 1, title: '工作台', type: 2, path: '/dashboard/workplace', name: 'W', component: 'x' },
+          { id: 3, parentId: 1, title: '用户管理', type: 2, path: '/system/user', name: 'U', component: 'x' }
+        ]
+      }
+    ])
+
+    const system = groups.find(group => group.label === '系统管理')
+    expect(system?.items.map(item => item.url)).toEqual(['/system/user'])
   })
 })
 

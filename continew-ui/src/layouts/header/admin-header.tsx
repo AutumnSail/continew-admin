@@ -32,7 +32,7 @@ function HeaderBrand({ wide }: { wide: boolean }) {
 
   return (
     <Link
-      to="/dashboard"
+      to="/dashboard/workplace"
       aria-label={title || '返回仪表盘'}
       className={cn(
         'flex shrink-0 items-center gap-2 overflow-hidden font-semibold',

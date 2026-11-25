@@ -15,7 +15,7 @@ import { useAuthStore } from '@/stores/auth/auth-provider'
 
 import { CaptchaImage } from './captcha-image'
 
-const DEFAULT_REDIRECT = '/dashboard'
+const DEFAULT_REDIRECT = '/dashboard/workplace'
 
 const formSchema = z.object({
   tenantCode: z.string().optional(),

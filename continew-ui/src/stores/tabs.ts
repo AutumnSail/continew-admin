@@ -10,14 +10,16 @@ export interface TabItem {
 }
 
 export const DEFAULT_PINNED_TAB: TabItem = {
-  id: '/dashboard',
-  title: '仪表盘',
-  path: '/dashboard',
+  id: '/dashboard/workplace',
+  title: '工作台',
+  path: '/dashboard/workplace',
   closable: false,
-  icon: 'dashboard'
+  icon: 'desktop'
 }
 
 const STORAGE_KEY = 'continew_in_header_tabs'
+/** Bumped when the pinned landing tab moves, so sessions restored from an older build start clean. */
+const STORAGE_VERSION = 1
 
 interface TabsState {
   tabs: TabItem[]
@@ -147,6 +149,10 @@ export const useTabsStore = create<TabsState>()(
     }),
     {
       name: STORAGE_KEY,
+      version: STORAGE_VERSION,
+      // Tabs restored from before the landing page moved still pin `/dashboard`, which now only
+      // redirects; drop that state rather than render a stale pinned tab.
+      migrate: () => ({ tabs: [DEFAULT_PINNED_TAB] }),
       storage: createJSONStorage(() => sessionStorage),
       partialize: state => ({ tabs: state.tabs })
     }
