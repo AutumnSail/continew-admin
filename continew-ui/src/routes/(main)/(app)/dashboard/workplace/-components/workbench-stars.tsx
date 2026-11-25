@@ -9,7 +9,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 import { Skeleton } from '@/components/ui/skeleton'
 import { isWorkbenchEnabled, type WorkbenchRange } from '@/lib/api/workbench'
 
-import { labelledBuckets, starDomain, toStarPoints, windowEndLabel } from './workbench-data'
+import { labelledBuckets, starDomain, toStarPoints } from './workbench-data'
 import { starsQueryOptions } from './workbench-queries'
 
 const chartConfig = {
@@ -33,17 +33,24 @@ export function WorkbenchStars({ range }: { readonly range: WorkbenchRange }) {
   const latest = measured.at(-1)
   const domain = starDomain(points.map(point => point.totalStars))
   const gaps = points.filter(point => point.totalStars === null)
+  const partial = points.some(point => point.partial)
+  const isSample = query.data?.source === 'mock'
 
   return (
     <Card className="@container/stars">
       <CardHeader>
         <CardTitle>Star 趋势</CardTitle>
         <CardDescription>
-          {meta ? <>截至 {windowEndLabel(meta)} · 公开仓库 Star 总数</> : '公开仓库 Star 总数'}
+          {meta && latest ? <>截至 {latest.label} · 公开仓库 Star 总数</> : '公开仓库 Star 总数'}
         </CardDescription>
         <CardAction className="flex items-center gap-2">
-          {gaps.length > 0 ? <Badge variant="secondary">部分数据</Badge> : null}
-          {latest?.totalStars != null ? (
+          {isSample ? (
+            <Badge variant="outline" className="text-muted-foreground">
+              示例数据
+            </Badge>
+          ) : null}
+          {partial ? <Badge variant="secondary">部分数据</Badge> : null}
+          {typeof latest?.totalStars === 'number' ? (
             <span className="text-lg font-semibold tabular-nums">{latest.totalStars.toLocaleString('zh-CN')}</span>
           ) : null}
         </CardAction>

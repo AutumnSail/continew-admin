@@ -44,7 +44,10 @@ export default defineConfig(({ mode }) => {
   // The public Hub rejects any request whose Referer is not on its allowlist, and a browser on
   // the dev server sends `localhost`. A same-origin prefix therefore proxies to the Hub origin
   // and rewrites the Referer; an absolute VITE_WORKBENCH_HUB_URL is called directly instead.
-  const hubPrefix = VITE_WORKBENCH_HUB_URL?.startsWith('/') ? VITE_WORKBENCH_HUB_URL : null
+  // `/` alone would proxy the whole dev site, and the client strips trailing slashes to `/` too,
+  // so it counts as unconfigured on both sides.
+  const rawHubPrefix = VITE_WORKBENCH_HUB_URL?.replace(/\/+$/, '') ?? ''
+  const hubPrefix = rawHubPrefix.startsWith('/') && rawHubPrefix.length > 1 ? rawHubPrefix : null
 
   return {
     base: VITE_BASE_PATH || '/',

@@ -7,6 +7,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getRaw } from '@/lib/http'
 
+import { safeHttpUrl } from './workbench-data'
+
 const SPONSOR_BASE = 'https://continew.top'
 const SPONSOR_FEED_PATH = '/sponsor.json'
 const AUTOPLAY_MS = 4000
@@ -40,21 +42,27 @@ const STATIC_ITEMS: readonly PromoItem[] = [
 
 /** Sponsor images are either absolute URLs or file names inside the partners folder. */
 function toImageUrl(img: string) {
-  return /^https?:\/\//i.test(img) ? img : `${SPONSOR_BASE}/images/sponsor/partners/${img}`
+  return safeHttpUrl(/^https?:\/\//i.test(img) ? img : `${SPONSOR_BASE}/images/sponsor/partners/${img}`, '')
 }
 
-function sponsorsToItems(feed: SponsorFeed | null): PromoItem[] {
+/** Drops entries whose tag is missing or malformed; the feed is a third-party document. */
+function entriesOf(group: unknown): SponsorEntry[] {
+  return Array.isArray(group)
+    ? group.filter((entry): entry is SponsorEntry => typeof entry === 'object' && entry !== null)
+    : []
+}
+
+function sponsorsToItems(feed: Partial<SponsorFeed> | null): PromoItem[] {
   if (!feed) {
     return []
   }
 
-  return [...(feed.special ?? []), ...(feed.platinum ?? [])]
-    .filter(entry => Boolean(entry.name && entry.img))
-    .map(entry => ({
-      name: entry.name as string,
-      img: toImageUrl(entry.img as string),
-      url: entry.url ?? SPONSOR_BASE
-    }))
+  return [...entriesOf(feed.special), ...entriesOf(feed.platinum)].flatMap(entry => {
+    const name = typeof entry.name === 'string' ? entry.name.trim() : ''
+    const img = typeof entry.img === 'string' ? toImageUrl(entry.img) : ''
+
+    return name && img ? [{ name, img, url: safeHttpUrl(entry.url, SPONSOR_BASE) }] : []
+  })
 }
 
 /**
@@ -65,7 +73,10 @@ function sponsorsToItems(feed: SponsorFeed | null): PromoItem[] {
 export function WorkbenchSponsors() {
   const feed = useQuery({
     queryKey: ['workbench', 'sponsors'],
-    queryFn: ({ signal }) => getRaw<SponsorFeed>(SPONSOR_FEED_PATH, { baseUrl: SPONSOR_BASE, signal }),
+    queryFn: async ({ signal }) => {
+      const body = await getRaw<unknown>(SPONSOR_FEED_PATH, { baseUrl: SPONSOR_BASE, signal })
+      return (typeof body === 'object' && body !== null ? body : null) as Partial<SponsorFeed> | null
+    },
     // A marketing feed changes rarely and never within one visit.
     staleTime: 30 * 60_000,
     retry: 0
@@ -80,14 +91,17 @@ export function WorkbenchSponsors() {
     emblaApi?.reInit()
   }, [emblaApi, items.length])
 
+  // Autoplay stops while the carousel holds focus, so a focused sponsor link never scrolls away.
+  const [paused, setPaused] = React.useState(false)
+
   React.useEffect(() => {
-    if (!emblaApi || items.length <= 1) {
+    if (!emblaApi || items.length <= 1 || paused) {
       return
     }
 
     const timer = window.setInterval(() => emblaApi.scrollNext(), AUTOPLAY_MS)
     return () => window.clearInterval(timer)
-  }, [emblaApi, items.length])
+  }, [emblaApi, items.length, paused])
 
   return (
     <Card>
@@ -96,7 +110,14 @@ export function WorkbenchSponsors() {
         <CardDescription>感谢为项目提供资源与支持的伙伴</CardDescription>
       </CardHeader>
       <CardContent>
-        <div data-slot="carousel" className="group/carousel relative">
+        <div
+          data-slot="carousel"
+          className="group/carousel relative"
+          onFocusCapture={() => setPaused(true)}
+          onBlurCapture={() => setPaused(false)}
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+        >
           <div ref={emblaRef} className="overflow-hidden rounded-lg border">
             <div className="flex">
               {items.map(item => (

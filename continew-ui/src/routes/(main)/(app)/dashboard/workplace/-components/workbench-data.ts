@@ -54,18 +54,13 @@ export function bucketLabel(periodStart: string, range: WorkbenchRange) {
   return range === '6m' ? monthLabel(periodStart) : monthDay(periodStart)
 }
 
-/** Last calendar day the window covers, as `M/d`; the window itself ends exclusively. */
-export function windowEndLabel(meta: WorkbenchChartMeta) {
-  const end = new Date(`${meta.endExclusive}T00:00:00Z`)
-  return monthDay(new Date(end.getTime() - 86_400_000).toISOString().slice(0, 10))
-}
-
 const PROTOCOL = /^[a-z][a-z0-9+.-]*:\/\//i
 
 /**
  * Hub avatar paths are relative to the Hub web root, so they resolve against `hubBase` instead of
  * the Admin origin. Absolute http(s) URLs pass through. Anything else is treated as a Hub path:
- * leading slashes are dropped so a protocol-relative value cannot point at another host.
+ * leading slashes are dropped so a protocol-relative value cannot point at another host, and a
+ * value the URL parser rejects yields null so the caller falls back to the initial.
  */
 export function resolveAvatarUrl(avatarUrl: string | null | undefined, hubBase: string) {
   const value = avatarUrl?.trim()
@@ -75,7 +70,11 @@ export function resolveAvatarUrl(avatarUrl: string | null | undefined, hubBase: 
   }
 
   if (/^https?:\/\//i.test(value)) {
-    return value
+    try {
+      return new URL(value).toString()
+    } catch {
+      return null
+    }
   }
 
   const base = hubBase.replace(/\/+$/, '')
@@ -84,10 +83,15 @@ export function resolveAvatarUrl(avatarUrl: string | null | undefined, hubBase: 
     return null
   }
 
-  const absoluteBase = PROTOCOL.test(base) ? base : `http://hub.local${base}`
-  const resolved = new URL(value.replace(/^\/+/, ''), `${absoluteBase}/`)
+  // A path base (`/hub`) has no origin, so it is parsed against a stand-in and only the path kept.
+  const isAbsoluteBase = PROTOCOL.test(base)
 
-  return PROTOCOL.test(base) ? resolved.toString() : `${resolved.pathname}${resolved.search}`
+  try {
+    const resolved = new URL(value.replace(/^\/+/, ''), `${isAbsoluteBase ? base : `http://hub.local${base}`}/`)
+    return isAbsoluteBase ? resolved.toString() : `${resolved.pathname}${resolved.search}`
+  } catch {
+    return null
+  }
 }
 
 /** First character of the display name, shown when there is no avatar or it fails to load. */
@@ -227,6 +231,31 @@ export function releaseTitle(tagName: string, title: string) {
   const rest = title.startsWith(tagName) ? title.slice(tagName.length).replace(/^[-–—:：\s]+/, '') : title
 
   return { version: tagName, rest }
+}
+
+/**
+ * Keeps an http(s) target from a remote payload, so a bad or hostile value cannot turn a link
+ * into `javascript:` or an empty href. `fallback` is returned when the value is unusable.
+ */
+export function safeHttpUrl(url: string | null | undefined, fallback: string) {
+  const value = url?.trim()
+
+  if (!value) {
+    return fallback
+  }
+
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : fallback
+  } catch {
+    return fallback
+  }
+}
+
+/** Absolute http(s) only; null when the payload value cannot be used as a link. */
+export function safeOptionalHttpUrl(url: string | null | undefined) {
+  const value = safeHttpUrl(url, '')
+  return value || null
 }
 
 /** `2026-10-11` from a release timestamp. */

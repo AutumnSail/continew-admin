@@ -87,7 +87,36 @@ const COMMITS_PATH = '/api/workbench/commits'
 const STARS_PATH = '/api/workbench/stars'
 const RELEASES_PATH = '/api/workbench/releases'
 
-const request = async <T>(path: string, query: Record<string, string> | undefined, signal?: AbortSignal) => {
+/** A response the Hub answered but did not shape as documented; the panel then shows its error state. */
+export class WorkbenchShapeError extends Error {
+  constructor(path: string) {
+    super(`工作台数据格式异常（${path}）`)
+    this.name = 'WorkbenchShapeError'
+  }
+}
+
+/**
+ * The Hub payload is JSON from another service, so the declared generic is not evidence: an error
+ * object with status 200 would be cached as a success and then crash the chart projections on a
+ * missing `buckets`. Each endpoint checks the one field the page indexes into.
+ */
+function assertShape<T>(path: string, body: T, isValid: (value: unknown) => boolean): T {
+  if (!isValid(body)) {
+    throw new WorkbenchShapeError(path)
+  }
+
+  return body
+}
+
+const isChartBody = (body: unknown) =>
+  typeof body === 'object' && body !== null && Array.isArray((body as { buckets?: unknown }).buckets)
+
+const request = async <T>(
+  path: string,
+  query: Record<string, string> | undefined,
+  isValid: (value: unknown) => boolean,
+  signal?: AbortSignal
+): Promise<HubResponse<T>> => {
   // The header is read inside the response hook; a holder keeps its type from narrowing to null.
   const hint: { source: string | null } = { source: null }
   const data = await getRaw<T>(path, {
@@ -99,20 +128,27 @@ const request = async <T>(path: string, query: Record<string, string> | undefine
     }
   })
 
-  return { data, source: hint.source }
+  // The body arrives as `unknown` in truth: the generic is only the expected shape.
+  return { data: assertShape(path, data, isValid), source: hint.source }
 }
 
 export function getWorkbenchCommits(range: WorkbenchRange, signal?: AbortSignal) {
-  return request<WorkbenchCommitsResp>(COMMITS_PATH, { range }, signal)
+  return request<WorkbenchCommitsResp>(COMMITS_PATH, { range }, isChartBody, signal)
 }
 
 export function getWorkbenchStars(range: WorkbenchRange, signal?: AbortSignal) {
-  return request<WorkbenchStarsResp>(STARS_PATH, { range }, signal)
+  return request<WorkbenchStarsResp>(STARS_PATH, { range }, isChartBody, signal)
 }
 
 /** Releases do not follow the chart period, so this request carries no range. */
 export function getWorkbenchReleases(signal?: AbortSignal) {
-  return request<WorkbenchReleasesResp>(RELEASES_PATH, undefined, signal)
+  return request<WorkbenchReleasesResp>(
+    RELEASES_PATH,
+    undefined,
+    // `items: null` is a documented answer (no snapshot yet), so only a missing key is a bad shape.
+    body => typeof body === 'object' && body !== null && 'items' in body,
+    signal
+  )
 }
 
 export { workbenchKeys } from '@/lib/query-keys'

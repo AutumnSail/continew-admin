@@ -3,7 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import type { RouteResp } from '@/lib/api/types'
 
 import { resolveMenuIcon } from './menu-icons'
-import { STATIC_ROUTE_TITLES } from './route-titles'
+import { ANALYSIS_PATH, DASHBOARD_PATH, HOME_PATH, STATIC_ROUTE_TITLES } from './route-titles'
 
 export interface MenuItem {
   id: string
@@ -46,6 +46,12 @@ export function toPathname(path: string) {
   return queryIndex === -1 ? path : path.slice(0, queryIndex)
 }
 
+/** Normalizes a pathname for comparisons: no query string, no trailing slash. */
+function normalizePathname(pathname: string) {
+  const path = toPathname(pathname).replace(/\/+$/, '')
+  return path || '/'
+}
+
 /** Buttons carry a permission code instead of a page, and hidden nodes are details. */
 function isVisible(node: RouteResp) {
   return node.type !== TYPE_BUTTON && !node.isHidden
@@ -64,54 +70,58 @@ function toMenuItem(node: RouteResp): MenuItem {
 /**
  * Menu entries the app owns instead of the backend.
  *
- * The dashboard group is static: `/dashboard/workplace` and `/dashboard/analysis` exist for every
- * signed-in user, so they must not depend on `sys_menu` records or on the current user's
- * permissions. `/dashboard` itself redirects to the workbench.
+ * The dashboard group is static: the workbench and the analysis page exist for every signed-in
+ * user, so they must not depend on `sys_menu` records or on the current user's permissions.
  */
 export const STATIC_MENU_ITEMS: readonly MenuItem[] = [
   {
     id: 'app-dashboard',
     title: '仪表盘',
-    url: '/dashboard',
+    url: DASHBOARD_PATH,
     icon: resolveMenuIcon('dashboard'),
     subItems: [
-      {
-        id: 'app-dashboard-workplace',
-        title: '工作台',
-        url: '/dashboard/workplace',
-        icon: resolveMenuIcon('desktop')
-      },
-      {
-        id: 'app-dashboard-analysis',
-        title: '分析页',
-        url: '/dashboard/analysis',
-        icon: resolveMenuIcon('chart')
-      }
+      { id: 'app-dashboard-workplace', title: '工作台', url: HOME_PATH, icon: resolveMenuIcon('desktop') },
+      { id: 'app-dashboard-analysis', title: '分析页', url: ANALYSIS_PATH, icon: resolveMenuIcon('chart') }
     ]
   }
 ]
 
-/** Paths the app renders itself; a backend node on one of them would duplicate the sidebar entry. */
+/** Normalized paths the app renders itself; a backend node on one of them would duplicate the entry. */
 const STATIC_PATHS = new Set(
-  STATIC_MENU_ITEMS.flatMap(item => [item.url, ...(item.subItems ?? []).map(sub => sub.url)])
+  STATIC_MENU_ITEMS.flatMap(item => [item.url, ...(item.subItems ?? []).map(sub => sub.url)]).map(normalizePathname)
 )
 
-function isStaticPath(path: string) {
-  return STATIC_PATHS.has(toPathname(path))
+/**
+ * Drops a backend node whose path the app already renders, but keeps its children: a backend
+ * `/dashboard` directory may also hold pages of its own, and those still belong in the sidebar.
+ */
+function withoutStaticNodes(nodes: readonly RouteResp[]): RouteResp[] {
+  return nodes.flatMap(node => {
+    const children = node.children ? withoutStaticNodes(node.children) : undefined
+
+    if (STATIC_PATHS.has(normalizePathname(node.path))) {
+      return children ?? []
+    }
+
+    return [{ ...node, children }]
+  })
 }
 
 /** Nested directories are flattened: the sidebar renders a single sub-item level. */
 function toMenuSubItems(nodes: readonly RouteResp[]): MenuItem[] {
-  return nodes
-    .filter(isVisible)
-    .filter(node => !isStaticPath(node.path))
-    .flatMap(node => {
-      if (node.type !== TYPE_MENU && node.children?.length) {
-        return toMenuSubItems(node.children)
-      }
+  return nodes.flatMap(node => {
+    if (node.type !== TYPE_MENU && node.children?.length) {
+      return toMenuSubItems(node.children)
+    }
 
-      return [toMenuItem(node)]
-    })
+    return [toMenuItem(node)]
+  })
+}
+
+/** A directory keeps its children, or degrades to a plain link once none are left. */
+function toParentItem(node: RouteResp): MenuItem {
+  const subItems = toMenuSubItems(node.children ?? [])
+  return subItems.length > 0 ? { ...toMenuItem(node), subItems } : toMenuItem(node)
 }
 
 /**
@@ -121,17 +131,12 @@ function toMenuSubItems(nodes: readonly RouteResp[]): MenuItem[] {
  * directory nested inside a group becomes a collapsible parent item. Menus that sit
  * at the top level are collected into an unlabelled group in front of the rest, and
  * the app-owned static items are merged into that same group so they stay on top.
- *
- * Nodes on a static path are skipped: `/dashboard` and its pages come from the app, so a
- * leftover `sys_menu` record for them must not add a second entry.
  */
 export function toMenuGroups(nodes: readonly RouteResp[]): MenuGroup[] {
   const groups: MenuGroup[] = []
   const looseItems: MenuItem[] = [...STATIC_MENU_ITEMS]
 
-  const visible = nodes.filter(isVisible).filter(node => !isStaticPath(node.path))
-
-  for (const node of visible) {
+  for (const node of withoutStaticNodes(nodes.filter(isVisible))) {
     if (node.type === TYPE_MENU || !node.children?.length) {
       looseItems.push(toMenuItem(node))
       continue
@@ -139,12 +144,7 @@ export function toMenuGroups(nodes: readonly RouteResp[]): MenuGroup[] {
 
     const items = node.children
       .filter(isVisible)
-      .filter(child => !isStaticPath(child.path))
-      .map(child =>
-        child.type !== TYPE_MENU && child.children?.length
-          ? { ...toMenuItem(child), subItems: toMenuSubItems(child.children) }
-          : toMenuItem(child)
-      )
+      .map(child => (child.type !== TYPE_MENU && child.children?.length ? toParentItem(child) : toMenuItem(child)))
 
     if (items.length > 0) {
       groups.push({ id: String(node.id), label: node.title, icon: resolveMenuIcon(node.icon), items })
@@ -179,12 +179,6 @@ export function findMenuTrail(nodes: readonly RouteResp[], pathname: string): Ro
 /** Finds the menu entry behind a pathname, so placeholders can show its title. */
 export function findMenuByPath(nodes: readonly RouteResp[], pathname: string) {
   return findMenuTrail(nodes, pathname).at(-1)
-}
-
-/** Normalizes a pathname for menu matching: no query string, no trailing slash. */
-function normalizePathname(pathname: string) {
-  const path = toPathname(pathname).replace(/\/+$/, '')
-  return path || '/'
 }
 
 /**

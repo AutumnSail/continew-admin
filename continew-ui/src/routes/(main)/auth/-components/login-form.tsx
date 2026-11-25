@@ -14,8 +14,9 @@ import { useCaptcha } from '@/hooks/use-captcha'
 import { useAuthStore } from '@/stores/auth/auth-provider'
 
 import { CaptchaImage } from './captcha-image'
+import { HOME_PATH } from '@/navigation/route-titles'
 
-const DEFAULT_REDIRECT = '/dashboard/workplace'
+const DEFAULT_REDIRECT = HOME_PATH
 
 const formSchema = z.object({
   tenantCode: z.string().optional(),

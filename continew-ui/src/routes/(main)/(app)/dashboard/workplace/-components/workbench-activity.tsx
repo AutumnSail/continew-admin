@@ -101,6 +101,14 @@ export function WorkbenchActivity({
   const [selectedStart, setSelectedStart] = React.useState<string | null>(null)
   const query = useQuery(commitsQueryOptions(range))
 
+  // Day and month buckets can share a period start (`2026-10-01`), so a selection left over from
+  // the other range would silently point at a different period. Drop it whenever the range moves.
+  const [selectedRange, setSelectedRange] = React.useState(range)
+  if (selectedRange !== range) {
+    setSelectedRange(range)
+    setSelectedStart(null)
+  }
+
   const meta = query.data?.data
   // The projection is derived from the response, so it only changes when the response does.
   const bars = React.useMemo(() => (meta ? toCommitBars(meta, meta.buckets) : []), [meta])
@@ -110,8 +118,10 @@ export function WorkbenchActivity({
   const axis = barAxis(bars.map(bar => bar.total))
   const labels = labelledBuckets(bars, range)
 
-  // Without a selection the panel summarises the whole window; a click narrows it to one bucket.
-  const leaderboard = toLeaderboard(selected ? selected.authors : aggregateAuthors(bars.map(bar => bar.authors)))
+  // The chart total always describes the whole window; the leaderboard follows the selection.
+  const windowAuthors = aggregateAuthors(bars.map(bar => bar.authors))
+  const windowTotal = windowAuthors.reduce((sum, author) => sum + author.count, 0)
+  const leaderboard = toLeaderboard(selected ? selected.authors : windowAuthors)
   const partial = selected ? selected.partial : bars.some(bar => bar.partial)
   const isSample = query.data?.source === 'mock'
 
@@ -149,7 +159,7 @@ export function WorkbenchActivity({
             <div className="min-w-0">
               <div className="flex items-baseline justify-between gap-2">
                 <h3 className="text-sm font-medium">{range === '6m' ? '每月提交次数' : '每日提交次数'}</h3>
-                <span className="text-xs text-muted-foreground tabular-nums">合计 {leaderboard.total} 次</span>
+                <span className="text-xs text-muted-foreground tabular-nums">合计 {windowTotal} 次</span>
               </div>
 
               <div className="mt-3 flex gap-1.5">
@@ -262,7 +272,10 @@ export function WorkbenchActivity({
               </p>
 
               {leaderboard.rows.length === 0 ? (
-                <p className="py-8 text-center text-xs text-muted-foreground">该周期没有提交</p>
+                <p className="py-8 text-center text-xs text-muted-foreground">
+                  {/* A partial bucket may simply not have been collected, so it is not "no commits". */}
+                  {partial ? '该周期暂无可用提交明细' : '该周期没有提交'}
+                </p>
               ) : (
                 <ol className="mt-2 max-h-52 overflow-y-auto">
                   {leaderboard.rows.map(author => (

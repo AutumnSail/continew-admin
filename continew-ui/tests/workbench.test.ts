@@ -17,11 +17,12 @@ import {
   bucketTotal,
   labelledBuckets,
   resolveAvatarUrl,
+  safeHttpUrl,
+  safeOptionalHttpUrl,
   starDomain,
   toCommitBars,
   toLeaderboard,
-  toStarPoints,
-  windowEndLabel
+  toStarPoints
 } from '@/routes/(main)/(app)/dashboard/workplace/-components/workbench-data'
 
 const author = (authorId: string, displayName: string, count: number, avatarUrl: string | null = null) => ({
@@ -218,11 +219,6 @@ describe('small helpers', () => {
     expect(bucketTotal(null)).toBe(0)
     expect(bucketTotal([])).toBe(0)
   })
-
-  it('labels the last day inside the exclusive window end', () => {
-    expect(windowEndLabel(meta())).toBe('11/23')
-    expect(windowEndLabel(meta({ range: '6m', endExclusive: '2026-11-01' }))).toBe('10/31')
-  })
 })
 
 const commitResponse = (range: '30d' | '6m'): WorkbenchCommitsResp => ({
@@ -233,6 +229,20 @@ const commitResponse = (range: '30d' | '6m'): WorkbenchCommitsResp => ({
 const starsResponse = (range: '30d' | '6m'): WorkbenchStarsResp => ({
   ...meta({ range }),
   buckets: [{ periodStart: '2026-10-25', totalStars: 120 }]
+})
+
+describe('safeHttpUrl', () => {
+  it('keeps http(s) targets and falls back for anything else', () => {
+    expect(safeHttpUrl('https://github.com/continew-org/continew-admin/releases/tag/v4.2.0', 'https://fallback')).toBe(
+      'https://github.com/continew-org/continew-admin/releases/tag/v4.2.0'
+    )
+    expect(safeHttpUrl('http://example.com/a', 'https://fallback')).toBe('http://example.com/a')
+    expect(safeHttpUrl('javascript:alert(1)', 'https://fallback')).toBe('https://fallback')
+    expect(safeHttpUrl('', 'https://fallback')).toBe('https://fallback')
+    expect(safeHttpUrl(null, 'https://fallback')).toBe('https://fallback')
+    expect(safeHttpUrl('not a url', 'https://fallback')).toBe('https://fallback')
+    expect(safeOptionalHttpUrl('javascript:alert(1)')).toBeNull()
+  })
 })
 
 describe('workbench query keys', () => {

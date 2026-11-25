@@ -6,6 +6,7 @@ import { Loader2Icon } from 'lucide-react'
 
 import { toast } from '@/components/ui/toast'
 import { useAuthStore } from '@/stores/auth/auth-provider'
+import { HOME_PATH } from '@/navigation/route-titles'
 
 export const Route = createFileRoute('/(main)/social/callback')({
   validateSearch: (search: Record<string, unknown>) => search,
@@ -39,7 +40,7 @@ function SocialLoginCallback() {
     socialLogin({ ...rest, source })
       .then(() => {
         toast.add({ title: '登录成功', type: 'success' })
-        const target = typeof redirect === 'string' && redirect.startsWith('/') ? redirect : '/dashboard/workplace'
+        const target = typeof redirect === 'string' && redirect.startsWith('/') ? redirect : HOME_PATH
         return navigate({ href: target, replace: true })
       })
       .catch(error => {

@@ -21,6 +21,31 @@ function reset() {
   useTabsStore.setState({ tabs: [{ ...DEFAULT_PINNED_TAB }], history: [] })
 }
 
+describe('tabs persistence migration', () => {
+  it('replaces the old pinned dashboard tab and keeps the other tabs, ordered and de-duplicated', () => {
+    // A session from the previous build: the pinned tab is `/dashboard`, two user tabs are open.
+    memory.set(
+      'continew_in_header_tabs',
+      JSON.stringify({
+        state: {
+          tabs: [
+            { id: '/dashboard', title: '仪表盘', path: '/dashboard', closable: false, icon: 'dashboard' },
+            { id: '/system/user', title: '用户管理', path: '/system/user', closable: true, icon: 'user' },
+            { id: '/dashboard', title: '仪表盘', path: '/dashboard', closable: true, icon: 'dashboard' }
+          ]
+        },
+        version: 0
+      })
+    )
+
+    // The store already hydrated at import time; rehydrate against the freshly written entry.
+    return useTabsStore.persist.rehydrate().then(() => {
+      expect(useTabsStore.getState().tabs.map(t => t.path)).toEqual([DEFAULT_PINNED_TAB.path, '/system/user'])
+      expect(useTabsStore.getState().tabs[0].closable).toBe(false)
+    })
+  })
+})
+
 describe('tabs store', () => {
   beforeEach(reset)
 

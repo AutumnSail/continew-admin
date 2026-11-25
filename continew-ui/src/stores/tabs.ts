@@ -18,8 +18,10 @@ export const DEFAULT_PINNED_TAB: TabItem = {
 }
 
 const STORAGE_KEY = 'continew_in_header_tabs'
-/** Bumped when the pinned landing tab moves, so sessions restored from an older build start clean. */
+/** Bumped when the pinned landing tab moves, so sessions restored from an older build are migrated. */
 const STORAGE_VERSION = 1
+/** The pinned tab before the workbench became the landing page. */
+const LEGACY_PINNED_PATH = '/dashboard'
 
 interface TabsState {
   tabs: TabItem[]
@@ -151,8 +153,26 @@ export const useTabsStore = create<TabsState>()(
       name: STORAGE_KEY,
       version: STORAGE_VERSION,
       // Tabs restored from before the landing page moved still pin `/dashboard`, which now only
-      // redirects; drop that state rather than render a stale pinned tab.
-      migrate: () => ({ tabs: [DEFAULT_PINNED_TAB] }),
+      // redirects. Swap that entry for the new pinned tab and keep everything else as it was.
+      migrate: (persisted: unknown) => {
+        const tabs = (persisted as { tabs?: TabItem[] } | null)?.tabs
+        if (!Array.isArray(tabs) || tabs.length === 0) {
+          return { tabs: [DEFAULT_PINNED_TAB] }
+        }
+
+        const seen = new Set<string>()
+        const next = tabs
+          .map(tab => (tab.path === LEGACY_PINNED_PATH ? { ...DEFAULT_PINNED_TAB } : tab))
+          .filter(tab => {
+            if (seen.has(tab.path)) {
+              return false
+            }
+            seen.add(tab.path)
+            return true
+          })
+
+        return { tabs: next.some(tab => tab.path === DEFAULT_PINNED_TAB.path) ? next : [DEFAULT_PINNED_TAB, ...next] }
+      },
       storage: createJSONStorage(() => sessionStorage),
       partialize: state => ({ tabs: state.tabs })
     }

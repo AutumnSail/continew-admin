@@ -291,13 +291,29 @@ export async function getRaw<T>(path: string, options: RawRequestOptions): Promi
   }
 
   onResponse?.(response)
-  const data = await response.json().catch(() => null)
 
-  if (!response.ok || data === null) {
+  // Reading the body is still cancellable: an abort or a timeout during the read must surface as
+  // such instead of being reported as a malformed body.
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch (error) {
+    if (callerSignal?.aborted) {
+      throw error
+    }
+
+    if (timeout.aborted) {
+      throw fail(STATUS_MESSAGE[408] ?? NETWORK_ERROR_MESSAGE, { status: 408 }, true)
+    }
+
+    throw fail(`响应格式异常（${response.status}）`, { status: response.status }, true)
+  }
+
+  if (!response.ok) {
     throw fail(STATUS_MESSAGE[response.status] ?? `请求失败（${response.status}）`, { status: response.status }, true)
   }
 
-  return data as T
+  return body as T
 }
 
 async function send<T>(

@@ -2,35 +2,46 @@ import { useQuery } from '@tanstack/react-query'
 import { ExternalLink, Tag } from 'lucide-react'
 
 import { QueryState } from '@/components/query-state'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { isWorkbenchEnabled } from '@/lib/api/workbench'
+import { PROJECT_LINKS } from '@/navigation/route-titles'
 
-import { releaseDate, releaseTitle, snapshotTime } from './workbench-data'
+import { releaseDate, releaseTitle, safeHttpUrl, snapshotTime } from './workbench-data'
 import { releasesQueryOptions } from './workbench-queries'
 
-const RELEASES_URL = 'https://github.com/continew-org/continew-admin/releases'
-
-/** The latest formal releases, straight from the Hub; the news does not follow the chart period. */
+/**
+ * The latest formal releases, straight from the Hub; the news does not follow the chart period.
+ *
+ * `htmlUrl` comes from a remote payload, so it is checked before it becomes an href: a malformed
+ * or non-http(s) value links to the releases page instead of wherever it points.
+ */
 export function WorkbenchReleases() {
   const query = useQuery(releasesQueryOptions())
   const data = query.data?.data
   const items = data?.items ?? null
   const updated = snapshotTime(data?.updatedAt ?? null)
+  const isSample = query.data?.source === 'mock'
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>更新日志</CardTitle>
         <CardDescription>{updated ? `快照 ${updated}` : 'ContiNew Admin 正式发布'}</CardDescription>
-        <CardAction>
+        <CardAction className="flex items-center gap-2">
+          {isSample ? (
+            <Badge variant="outline" className="text-muted-foreground">
+              示例数据
+            </Badge>
+          ) : null}
           <Button
             variant="ghost"
             size="sm"
             className="text-xs text-muted-foreground"
             nativeButton={false}
-            render={<a href={RELEASES_URL} target="_blank" rel="noreferrer" />}
+            render={<a href={PROJECT_LINKS.releases} target="_blank" rel="noreferrer" />}
           >
             全部
             <ExternalLink />
@@ -59,7 +70,7 @@ export function WorkbenchReleases() {
               return (
                 <li key={item.tagName} className="border-b last:border-b-0">
                   <a
-                    href={item.htmlUrl}
+                    href={safeHttpUrl(item.htmlUrl, PROJECT_LINKS.releases)}
                     target="_blank"
                     rel="noreferrer"
                     className="-mx-2 flex items-start gap-2 rounded-md px-2 py-2.5 transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
