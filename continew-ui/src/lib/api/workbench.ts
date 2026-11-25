@@ -128,7 +128,7 @@ export const isCommitBucket = (value: unknown) =>
   typeof value.periodStart === 'string' &&
   (value.authors === null || (Array.isArray(value.authors) && value.authors.every(isAuthor)))
 
-/** Star bucket: `totalStars` is either the documented null or a finite number. */
+/** Star bucket: `totalStars` is either the documented null or a non-negative integer. */
 export const isStarBucket = (value: unknown) =>
   isObject(value) && typeof value.periodStart === 'string' && (value.totalStars === null || isCount(value.totalStars))
 
