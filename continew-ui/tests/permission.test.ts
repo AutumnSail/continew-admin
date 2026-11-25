@@ -154,3 +154,48 @@ describe('isPathAllowed', () => {
     expect(isPathAllowed(menu, '/dashboard/unknown')).toBe(false)
   })
 })
+
+describe('toMenuGroups with seeded menu shapes', () => {
+  it('keeps a menu page whose children are only buttons and hidden pages', () => {
+    // The seed data models 通知公告 exactly like this: a type-2 page with button and hidden children.
+    const groups = toMenuGroups([
+      {
+        id: 1000,
+        parentId: 0,
+        title: '系统管理',
+        type: 1,
+        path: '/system',
+        name: 'System',
+        component: 'Layout',
+        children: [
+          {
+            id: 1090,
+            parentId: 1000,
+            title: '通知公告',
+            type: 2,
+            path: '/system/notice',
+            name: 'SystemNotice',
+            component: 'system/notice/index',
+            children: [
+              { id: 1091, parentId: 1090, title: '列表', type: 3, path: '', name: null, component: null },
+              {
+                id: 1093,
+                parentId: 1090,
+                title: '查看公告',
+                type: 2,
+                path: '/system/notice/view',
+                name: 'V',
+                component: 'x',
+                isHidden: true
+              }
+            ]
+          }
+        ]
+      }
+    ])
+
+    const system = groups.find(group => group.label === '系统管理')
+    expect(system?.items.map(item => item.url)).toEqual(['/system/notice'])
+    expect(system?.items[0].subItems).toBeUndefined()
+  })
+})

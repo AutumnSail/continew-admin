@@ -96,8 +96,9 @@ const STATIC_PATHS = new Set(
  * `/dashboard` directory may also hold pages of its own, and those still belong in the sidebar.
  *
  * Invisible nodes are pruned at every level here, so a hidden or button child of a dropped
- * directory never surfaces as a top-level link. A directory that loses all of its children is
- * dropped too: keeping it would render a link to a path that has no page.
+ * directory never surfaces as a top-level link. Only a directory that loses all of its children
+ * is dropped as well: it would render as a link to a path with no page, while a menu (type 2)
+ * naturally has nothing but buttons and hidden pages under it and must stay.
  */
 function withoutStaticNodes(nodes: readonly RouteResp[]): RouteResp[] {
   return nodes.filter(isVisible).flatMap(node => {
@@ -112,8 +113,8 @@ function withoutStaticNodes(nodes: readonly RouteResp[]): RouteResp[] {
     }
 
     const keptChildren = withoutStaticNodes(children)
-    // A directory whose children all disappeared has nothing left to open.
-    return keptChildren.length > 0 ? [{ ...node, children: keptChildren }] : []
+    const isDirectory = node.type !== TYPE_MENU
+    return isDirectory && keptChildren.length === 0 ? [] : [{ ...node, children: keptChildren }]
   })
 }
 
