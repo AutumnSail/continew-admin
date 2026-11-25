@@ -80,6 +80,38 @@ describe('toMenuGroups', () => {
     expect(items.filter(item => item.url === '/dashboard' || item.id.startsWith('app-dashboard'))).toHaveLength(1)
   })
 
+  it('prunes hidden and button descendants of a dropped dashboard directory', () => {
+    const groups = toMenuGroups([
+      {
+        id: 1,
+        parentId: 0,
+        title: '仪表盘',
+        type: 1,
+        path: '/dashboard',
+        name: 'Dashboard',
+        component: 'Layout',
+        children: [
+          {
+            id: 11,
+            parentId: 1,
+            title: '隐藏页',
+            type: 2,
+            path: '/dashboard/hidden',
+            name: 'H',
+            component: 'x',
+            isHidden: true
+          },
+          { id: 12, parentId: 1, title: '按钮', type: 3, path: '', name: 'B', component: 'x', permission: 'x:y' }
+        ]
+      }
+    ])
+
+    const items = groups.flatMap(group => group.items)
+    // A hidden page or a button must never be lifted to the top level by the dedupe.
+    expect(items.map(item => item.id)).toEqual(['app-dashboard'])
+    expect(items[0].subItems?.map(sub => sub.url)).toEqual(['/dashboard/workplace', '/dashboard/analysis'])
+  })
+
   it('drops a backend node that points at a dashboard child page', () => {
     const groups = toMenuGroups([
       {

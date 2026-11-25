@@ -94,16 +94,26 @@ const STATIC_PATHS = new Set(
 /**
  * Drops a backend node whose path the app already renders, but keeps its children: a backend
  * `/dashboard` directory may also hold pages of its own, and those still belong in the sidebar.
+ *
+ * Invisible nodes are pruned at every level here, so a hidden or button child of a dropped
+ * directory never surfaces as a top-level link. A directory that loses all of its children is
+ * dropped too: keeping it would render a link to a path that has no page.
  */
 function withoutStaticNodes(nodes: readonly RouteResp[]): RouteResp[] {
-  return nodes.flatMap(node => {
-    const children = node.children ? withoutStaticNodes(node.children) : undefined
+  return nodes.filter(isVisible).flatMap(node => {
+    const children = node.children
 
     if (STATIC_PATHS.has(normalizePathname(node.path))) {
-      return children ?? []
+      return children ? withoutStaticNodes(children) : []
     }
 
-    return [{ ...node, children }]
+    if (!children) {
+      return [node]
+    }
+
+    const keptChildren = withoutStaticNodes(children)
+    // A directory whose children all disappeared has nothing left to open.
+    return keptChildren.length > 0 ? [{ ...node, children: keptChildren }] : []
   })
 }
 
@@ -136,15 +146,15 @@ export function toMenuGroups(nodes: readonly RouteResp[]): MenuGroup[] {
   const groups: MenuGroup[] = []
   const looseItems: MenuItem[] = [...STATIC_MENU_ITEMS]
 
-  for (const node of withoutStaticNodes(nodes.filter(isVisible))) {
+  for (const node of withoutStaticNodes(nodes)) {
     if (node.type === TYPE_MENU || !node.children?.length) {
       looseItems.push(toMenuItem(node))
       continue
     }
 
-    const items = node.children
-      .filter(isVisible)
-      .map(child => (child.type !== TYPE_MENU && child.children?.length ? toParentItem(child) : toMenuItem(child)))
+    const items = node.children.map(child =>
+      child.type !== TYPE_MENU && child.children?.length ? toParentItem(child) : toMenuItem(child)
+    )
 
     if (items.length > 0) {
       groups.push({ id: String(node.id), label: node.title, icon: resolveMenuIcon(node.icon), items })

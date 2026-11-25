@@ -84,10 +84,22 @@ export function resolveAvatarUrl(avatarUrl: string | null | undefined, hubBase: 
   }
 
   // A path base (`/hub`) has no origin, so it is parsed against a stand-in and only the path kept.
+  // Browsers treat a backslash as a path separator, so a value like `\evil.example/x` would resolve
+  // to another host under an absolute base; such a value is treated as unusable.
+  const relative = value.replace(/^\/+/, '')
+  if (relative.includes('\\')) {
+    return null
+  }
+
   const isAbsoluteBase = PROTOCOL.test(base)
+  const baseUrl = isAbsoluteBase ? base : `http://hub.local${base}`
 
   try {
-    const resolved = new URL(value.replace(/^\/+/, ''), `${isAbsoluteBase ? base : `http://hub.local${base}`}/`)
+    const resolved = new URL(relative, `${baseUrl}/`)
+    if (resolved.origin !== new URL(baseUrl).origin) {
+      return null
+    }
+
     return isAbsoluteBase ? resolved.toString() : `${resolved.pathname}${resolved.search}`
   } catch {
     return null

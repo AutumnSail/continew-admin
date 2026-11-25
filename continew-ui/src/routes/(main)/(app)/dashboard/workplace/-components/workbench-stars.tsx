@@ -33,7 +33,8 @@ export function WorkbenchStars({ range }: { readonly range: WorkbenchRange }) {
   const latest = measured.at(-1)
   const domain = starDomain(points.map(point => point.totalStars))
   const gaps = points.filter(point => point.totalStars === null)
-  const partial = points.some(point => point.partial)
+  // A gap the Hub forgot to list is still incomplete data, so the badge must not depend on the list alone.
+  const partial = gaps.length > 0 || points.some(point => point.partial)
   const isSample = query.data?.source === 'mock'
 
   return (

@@ -59,7 +59,8 @@ function sponsorsToItems(feed: Partial<SponsorFeed> | null): PromoItem[] {
 
   return [...entriesOf(feed.special), ...entriesOf(feed.platinum)].flatMap(entry => {
     const name = typeof entry.name === 'string' ? entry.name.trim() : ''
-    const img = typeof entry.img === 'string' ? toImageUrl(entry.img) : ''
+    const file = typeof entry.img === 'string' ? entry.img.trim() : ''
+    const img = file ? toImageUrl(file) : ''
 
     return name && img ? [{ name, img, url: safeHttpUrl(entry.url, SPONSOR_BASE) }] : []
   })
@@ -91,8 +92,11 @@ export function WorkbenchSponsors() {
     emblaApi?.reInit()
   }, [emblaApi, items.length])
 
-  // Autoplay stops while the carousel holds focus, so a focused sponsor link never scrolls away.
-  const [paused, setPaused] = React.useState(false)
+  // Autoplay stops while the carousel is hovered or holds focus. The two are tracked separately:
+  // moving the mouse away while a sponsor link still has focus must not scroll it out of view.
+  const [hovered, setHovered] = React.useState(false)
+  const [focused, setFocused] = React.useState(false)
+  const paused = hovered || focused
 
   React.useEffect(() => {
     if (!emblaApi || items.length <= 1 || paused) {
@@ -113,10 +117,10 @@ export function WorkbenchSponsors() {
         <div
           data-slot="carousel"
           className="group/carousel relative"
-          onFocusCapture={() => setPaused(true)}
-          onBlurCapture={() => setPaused(false)}
-          onMouseEnter={() => setPaused(true)}
-          onMouseLeave={() => setPaused(false)}
+          onFocusCapture={() => setFocused(true)}
+          onBlurCapture={() => setFocused(false)}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
         >
           <div ref={emblaRef} className="overflow-hidden rounded-lg border">
             <div className="flex">

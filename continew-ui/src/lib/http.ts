@@ -292,11 +292,16 @@ export async function getRaw<T>(path: string, options: RawRequestOptions): Promi
 
   onResponse?.(response)
 
+  // A failing response is reported by status: an HTML 502 or an empty 403 has no JSON body, and
+  // reading it first would turn a clear HTTP error into a parse error.
+  if (!response.ok) {
+    throw fail(STATUS_MESSAGE[response.status] ?? `请求失败（${response.status}）`, { status: response.status }, true)
+  }
+
   // Reading the body is still cancellable: an abort or a timeout during the read must surface as
   // such instead of being reported as a malformed body.
-  let body: unknown
   try {
-    body = await response.json()
+    return (await response.json()) as T
   } catch (error) {
     if (callerSignal?.aborted) {
       throw error
@@ -308,12 +313,6 @@ export async function getRaw<T>(path: string, options: RawRequestOptions): Promi
 
     throw fail(`响应格式异常（${response.status}）`, { status: response.status }, true)
   }
-
-  if (!response.ok) {
-    throw fail(STATUS_MESSAGE[response.status] ?? `请求失败（${response.status}）`, { status: response.status }, true)
-  }
-
-  return body as T
 }
 
 async function send<T>(

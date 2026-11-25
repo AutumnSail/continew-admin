@@ -46,8 +46,11 @@ export default defineConfig(({ mode }) => {
   // and rewrites the Referer; an absolute VITE_WORKBENCH_HUB_URL is called directly instead.
   // `/` alone would proxy the whole dev site, and the client strips trailing slashes to `/` too,
   // so it counts as unconfigured on both sides.
-  const rawHubPrefix = VITE_WORKBENCH_HUB_URL?.replace(/\/+$/, '') ?? ''
-  const hubPrefix = rawHubPrefix.startsWith('/') && rawHubPrefix.length > 1 ? rawHubPrefix : null
+  // Same normalization the client applies (trim, then strip trailing slashes), so the proxy and
+  // the request path always agree. The trailing slash stays on the proxy key so `/hub-preview`
+  // is not swept up by the `/hub` rule.
+  const rawHubPrefix = (VITE_WORKBENCH_HUB_URL ?? '').trim().replace(/\/+$/, '')
+  const hubPrefix = rawHubPrefix.startsWith('/') && rawHubPrefix.length > 1 ? `${rawHubPrefix}/` : null
 
   return {
     base: VITE_BASE_PATH || '/',

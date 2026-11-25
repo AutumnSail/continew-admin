@@ -44,6 +44,30 @@ describe('tabs persistence migration', () => {
       expect(useTabsStore.getState().tabs[0].closable).toBe(false)
     })
   })
+
+  it('drops unusable entries and pins the landing tab once, even when the new path was already closable', () => {
+    memory.set(
+      'continew_in_header_tabs',
+      JSON.stringify({
+        state: {
+          tabs: [
+            { id: '/dashboard/workplace', title: '工作台', path: '/dashboard/workplace', closable: true, icon: null },
+            null,
+            { id: 'x', title: '无路径', closable: true },
+            { id: '/system/user', title: '用户管理', path: '/system/user', closable: true, icon: 'user' }
+          ]
+        },
+        version: 0
+      })
+    )
+
+    return useTabsStore.persist.rehydrate().then(() => {
+      const { tabs } = useTabsStore.getState()
+      expect(tabs.map(t => t.path)).toEqual([DEFAULT_PINNED_TAB.path, '/system/user'])
+      // The pinned entry is the default one, not the closable copy that was stored.
+      expect(tabs[0]).toEqual(DEFAULT_PINNED_TAB)
+    })
+  })
 })
 
 describe('tabs store', () => {

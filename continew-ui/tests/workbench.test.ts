@@ -199,11 +199,13 @@ describe('resolveAvatarUrl', () => {
     expect(resolveAvatarUrl('/avatars/linzhou.svg', '')).toBeNull()
   })
 
-  it('cannot be talked into another host by extra slashes', () => {
+  it('cannot be talked into another host by extra slashes or backslashes', () => {
     // A protocol-relative value would otherwise be read as an absolute URL.
     expect(resolveAvatarUrl('//evil.example/a.png', 'https://admin.continew.top/hub')).toBe(
       'https://admin.continew.top/hub/evil.example/a.png'
     )
+    // Browsers read a backslash as a separator, so this would climb to another origin.
+    expect(resolveAvatarUrl('\\evil.example/a.png', 'https://admin.continew.top/hub')).toBeNull()
   })
 })
 

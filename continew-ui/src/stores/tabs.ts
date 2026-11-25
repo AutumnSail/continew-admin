@@ -42,6 +42,16 @@ interface TabsState {
 
 const keep = (tab: TabItem, paths: Set<string>) => !tab.closable || paths.has(tab.path)
 
+/** A stored tab is only usable when it still has a path; anything else is dropped on restore. */
+function isRestorableTab(tab: unknown): tab is TabItem {
+  if (typeof tab !== 'object' || tab === null) {
+    return false
+  }
+
+  const candidate = tab as Partial<TabItem>
+  return typeof candidate.path === 'string' && candidate.path.length > 0 && typeof candidate.title === 'string'
+}
+
 /** Pinned tabs always sit in front of the closable ones. */
 const sortPinned = (tabs: TabItem[]) => [...tabs.filter(t => !t.closable), ...tabs.filter(t => t.closable)]
 
@@ -153,25 +163,25 @@ export const useTabsStore = create<TabsState>()(
       name: STORAGE_KEY,
       version: STORAGE_VERSION,
       // Tabs restored from before the landing page moved still pin `/dashboard`, which now only
-      // redirects. Swap that entry for the new pinned tab and keep everything else as it was.
+      // redirects. Drop both the old and the new landing path, then pin the landing tab in front;
+      // everything else keeps its order.
       migrate: (persisted: unknown) => {
-        const tabs = (persisted as { tabs?: TabItem[] } | null)?.tabs
-        if (!Array.isArray(tabs) || tabs.length === 0) {
+        const tabs = (persisted as { tabs?: unknown } | null)?.tabs
+        if (!Array.isArray(tabs)) {
           return { tabs: [DEFAULT_PINNED_TAB] }
         }
 
         const seen = new Set<string>()
-        const next = tabs
-          .map(tab => (tab.path === LEGACY_PINNED_PATH ? { ...DEFAULT_PINNED_TAB } : tab))
-          .filter(tab => {
-            if (seen.has(tab.path)) {
-              return false
-            }
-            seen.add(tab.path)
-            return true
-          })
+        const kept = tabs.filter(isRestorableTab).filter(tab => {
+          if (tab.path === LEGACY_PINNED_PATH || tab.path === DEFAULT_PINNED_TAB.path || seen.has(tab.path)) {
+            return false
+          }
 
-        return { tabs: next.some(tab => tab.path === DEFAULT_PINNED_TAB.path) ? next : [DEFAULT_PINNED_TAB, ...next] }
+          seen.add(tab.path)
+          return true
+        })
+
+        return { tabs: [DEFAULT_PINNED_TAB, ...kept] }
       },
       storage: createJSONStorage(() => sessionStorage),
       partialize: state => ({ tabs: state.tabs })
